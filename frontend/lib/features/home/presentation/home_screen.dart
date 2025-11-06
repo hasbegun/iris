@@ -35,7 +35,7 @@ class HomeScreen extends ConsumerWidget {
             content: Text(mediaError),
             backgroundColor: Colors.red,
             action: SnackBarAction(
-              label: 'Dismiss',
+              label: l10n.dismiss,
               textColor: Colors.white,
               onPressed: () {
                 ref.read(mediaProvider.notifier).clearError();
@@ -55,7 +55,7 @@ class HomeScreen extends ConsumerWidget {
             content: Text(analysisError.message),
             backgroundColor: Colors.red,
             action: SnackBarAction(
-              label: 'Dismiss',
+              label: l10n.dismiss,
               textColor: Colors.white,
               onPressed: () {
                 ref.read(analysisProvider.notifier).clearError();
@@ -95,7 +95,7 @@ class HomeScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Select Media',
+                        l10n.selectMedia,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
@@ -149,7 +149,7 @@ class HomeScreen extends ConsumerWidget {
                                     .pickImageFromCamera();
                               },
                         icon: const Icon(Icons.camera_alt),
-                        label: const Text('Take Photo'),
+                        label: Text(l10n.takePhoto),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
@@ -177,8 +177,8 @@ class HomeScreen extends ConsumerWidget {
                       // Check if prompt has text
                       if (promptText.trim().isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter a question'),
+                          SnackBar(
+                            content: Text(l10n.pleaseEnterQuestion),
                             backgroundColor: Colors.orange,
                           ),
                         );
@@ -276,7 +276,7 @@ class HomeScreen extends ConsumerWidget {
                         Text(
                           analysisLoading
                               ? l10n.processing
-                              : 'Loading media...',
+                              : l10n.loadingMedia,
                         ),
                       ],
                     ),

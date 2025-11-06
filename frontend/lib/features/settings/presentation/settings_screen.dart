@@ -318,8 +318,8 @@ class SettingsScreen extends ConsumerWidget {
         content: TextField(
           controller: controller,
           decoration: InputDecoration(
-            hintText: 'http://localhost:9000',
-            helperText: 'Enter the backend server URL',
+            hintText: l10n.backendUrlHint,
+            helperText: l10n.backendUrlHelper,
           ),
           keyboardType: TextInputType.url,
         ),
@@ -361,7 +361,7 @@ class SettingsScreen extends ConsumerWidget {
           controller: controller,
           decoration: InputDecoration(
             hintText: isVision ? 'llava:latest' : 'gemma3:latest',
-            helperText: 'Enter the model name',
+            helperText: l10n.modelNameHint,
           ),
         ),
         actions: [

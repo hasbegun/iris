@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image/image.dart' as img;
+import 'package:iris/l10n/app_localizations.dart';
 import '../../../speech/services/speech_service.dart';
 import '../../providers/live_camera_provider.dart';
 import 'live_detection_overlay.dart';
@@ -185,10 +186,11 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     if (!micStatus.isGranted) {
       debugPrint('[LiveCamera] Microphone permission not granted, speech features disabled');
       if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone permission needed for voice commands'),
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: Text(l10n.microphonePermissionNeeded),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -209,8 +211,9 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
     _speechService.onError = (error) {
       if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Speech error: $error')),
+          SnackBar(content: Text(l10n.speechError(error))),
         );
       }
     };
@@ -238,12 +241,14 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
   /// Handle recognized voice command
   void _handleVoiceCommand(VoiceCommandResult command) {
+    final l10n = AppLocalizations.of(context)!;
+
     switch (command.command) {
       case VoiceCommand.find:
         if (command.target != null) {
           _startDetection(command.target!);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Finding: ${command.target}')),
+            SnackBar(content: Text(l10n.findingObject(command.target!))),
           );
         }
         break;
@@ -251,27 +256,27 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       case VoiceCommand.stop:
         _stopDetection();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Detection stopped')),
+          SnackBar(content: Text(l10n.detectionStopped)),
         );
         break;
 
       case VoiceCommand.pause:
         // TODO: Implement pause functionality
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Pause not yet implemented')),
+          SnackBar(content: Text(l10n.pauseNotImplemented)),
         );
         break;
 
       case VoiceCommand.resume:
         // TODO: Implement resume functionality
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Resume not yet implemented')),
+          SnackBar(content: Text(l10n.resumeNotImplemented)),
         );
         break;
 
       case VoiceCommand.unknown:
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unknown command: ${command.rawText}')),
+          SnackBar(content: Text(l10n.unknownCommand(command.rawText))),
         );
         break;
     }
@@ -287,8 +292,9 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       debugPrint('[LiveCamera] Found ${cameras.length} cameras');
 
       if (cameras.isEmpty) {
+        final l10n = AppLocalizations.of(context)!;
         setState(() {
-          _errorMessage = 'No cameras available on this device';
+          _errorMessage = l10n.noCamerasAvailable;
         });
         return;
       }
@@ -324,14 +330,15 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       debugPrint('[LiveCamera] CameraException: ${e.code} - ${e.description}');
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
         // Handle specific camera errors
         if (e.code == 'CameraAccessDenied' || e.description?.contains('permission') == true) {
           setState(() {
-            _errorMessage = 'Camera permission denied. Please enable it in Settings > Iris > Camera.';
+            _errorMessage = l10n.cameraPermissionDenied;
           });
         } else {
           setState(() {
-            _errorMessage = 'Camera error: ${e.description ?? e.code}';
+            _errorMessage = l10n.cameraError(e.description ?? e.code);
           });
         }
       }
@@ -339,15 +346,16 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       debugPrint('[LiveCamera] Error initializing camera: $e');
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
         final errorStr = e.toString().toLowerCase();
         // Check if it's a permission-related error
         if (errorStr.contains('permission') || errorStr.contains('denied') || errorStr.contains('authorized')) {
           setState(() {
-            _errorMessage = 'Camera permission denied. Please enable it in Settings > Iris > Camera.';
+            _errorMessage = l10n.cameraPermissionDenied;
           });
         } else {
           setState(() {
-            _errorMessage = 'Failed to initialize camera: $e';
+            _errorMessage = l10n.cameraInitializationFailed(e.toString());
           });
         }
       }
@@ -385,6 +393,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       debugPrint('[LiveCamera] Stack trace: $stackTrace');
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
         setState(() {
           _isDetecting = false;
           _currentCommand = '';
@@ -392,7 +401,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to start camera stream: $e'),
+            content: Text(l10n.cameraStreamFailed(e.toString())),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
@@ -742,6 +751,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
   /// Build toggle switch for detection/segmentation mode
   Widget _buildToggleSwitch(BuildContext context, LiveCameraState liveCameraState) {
+    final l10n = AppLocalizations.of(context)!;
     final colorScheme = Theme.of(context).colorScheme;
     final isDetectionMode = liveCameraState.visualizationMode == LiveVisualizationMode.detection;
 
@@ -759,7 +769,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         children: [
           _buildToggleOption(
             context: context,
-            label: 'Detection',
+            label: l10n.detection,
             icon: Icons.category,
             isSelected: isDetectionMode,
             onTap: () {
@@ -768,7 +778,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
           ),
           _buildToggleOption(
             context: context,
-            label: 'Segmentation',
+            label: l10n.segmentation,
             icon: Icons.polyline,
             isSelected: !isDetectionMode,
             onTap: () {
@@ -864,15 +874,17 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Live Camera',
-          style: TextStyle(
+        title: Text(
+          l10n.liveCamera,
+          style: const TextStyle(
             color: Colors.white,
             shadows: [Shadow(color: Colors.black, blurRadius: 4)],
           ),
@@ -890,7 +902,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
               shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
             ),
             onPressed: _toggleVoiceCommand,
-            tooltip: _isListening ? 'Stop listening' : 'Voice command',
+            tooltip: _isListening ? l10n.stopListening : l10n.voiceCommand,
           ),
         ],
       ),
@@ -899,6 +911,8 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
   }
 
   Widget _buildBody() {
+    final l10n = AppLocalizations.of(context)!;
+
     // Error state
     if (_errorMessage != null) {
       final isPermissionError = _errorMessage!.toLowerCase().contains('permission') ||
@@ -931,7 +945,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                     await openAppSettings();
                   },
                   icon: const Icon(Icons.settings),
-                  label: const Text('Open Settings'),
+                  label: Text(l10n.openSettings),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
@@ -945,7 +959,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                     _initializeCamera();
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  label: Text(l10n.retry),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
@@ -964,7 +978,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Enable Camera permission in Settings, then tap Retry',
+                          l10n.retryInstructions,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
@@ -981,7 +995,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                     _initializeCamera();
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
+                  label: Text(l10n.retry),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
@@ -995,13 +1009,13 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
     // Loading state
     if (!_isInitialized || _cameraController == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Initializing camera...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l10n.initializingCamera),
           ],
         ),
       );
@@ -1118,8 +1132,8 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                   children: [
                     Text(
                       liveCameraState.visualizationMode == LiveVisualizationMode.detection
-                          ? (_currentCommand.isNotEmpty ? 'Detecting: $_currentCommand' : 'Detecting...')
-                          : (_currentCommand.isNotEmpty ? 'Segmenting: $_currentCommand' : 'Segmenting...'),
+                          ? (_currentCommand.isNotEmpty ? l10n.detectingObject(_currentCommand) : l10n.detecting)
+                          : (_currentCommand.isNotEmpty ? l10n.segmentingObject(_currentCommand) : l10n.segmenting),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -1130,7 +1144,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                   if (liveCameraState.visualizationMode == LiveVisualizationMode.detection && liveCameraState.hasDetections) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '${liveCameraState.detectionCount} object(s) found',
+                      l10n.objectsFound(liveCameraState.detectionCount),
                       style: TextStyle(
                         color: Colors.green[300],
                         fontSize: 14,
@@ -1141,7 +1155,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                   if (liveCameraState.visualizationMode == LiveVisualizationMode.segmentation && liveCameraState.hasSegments) ...[
                     const SizedBox(height: 4),
                     Text(
-                      '${liveCameraState.segmentCount} segment(s) found',
+                      l10n.segmentsFound(liveCameraState.segmentCount),
                       style: TextStyle(
                         color: Colors.green[300],
                         fontSize: 14,
@@ -1188,7 +1202,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                         const Icon(Icons.mic, color: Colors.white, size: 16),
                         const SizedBox(width: 8),
                         Text(
-                          'Listening...',
+                          l10n.listening,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -1256,9 +1270,9 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
               children: [
                 // Instructions
                 if (!_isDetecting)
-                  const Text(
-                    'Tap button below or use mic to say "find [object]"',
-                    style: TextStyle(
+                  Text(
+                    l10n.liveCameraInstructions,
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -1274,7 +1288,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                       ElevatedButton.icon(
                         onPressed: _stopDetection,
                         icon: const Icon(Icons.stop),
-                        label: const Text('Stop Detection'),
+                        label: Text(l10n.stopDetection),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                           foregroundColor: Colors.white,
@@ -1291,7 +1305,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                           _startDetection('');
                         },
                         icon: const Icon(Icons.radar),
-                        label: const Text('Start Detection'),
+                        label: Text(l10n.startDetection),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,

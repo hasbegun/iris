@@ -335,6 +335,234 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Speech Rate'**
   String get ttsRate;
+
+  /// Dismiss button
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get dismiss;
+
+  /// Select media section header
+  ///
+  /// In en, this message translates to:
+  /// **'Select Media'**
+  String get selectMedia;
+
+  /// Take photo button
+  ///
+  /// In en, this message translates to:
+  /// **'Take Photo'**
+  String get takePhoto;
+
+  /// Validation message for empty prompt
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a question'**
+  String get pleaseEnterQuestion;
+
+  /// Loading media status message
+  ///
+  /// In en, this message translates to:
+  /// **'Loading media...'**
+  String get loadingMedia;
+
+  /// Hint text for backend URL input
+  ///
+  /// In en, this message translates to:
+  /// **'http://localhost:9000'**
+  String get backendUrlHint;
+
+  /// Helper text for backend URL input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the backend server URL'**
+  String get backendUrlHelper;
+
+  /// Helper text for model name input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the model name'**
+  String get modelNameHint;
+
+  /// Live camera screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Live Camera'**
+  String get liveCamera;
+
+  /// Message when microphone permission is needed
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone permission needed for voice commands'**
+  String get microphonePermissionNeeded;
+
+  /// Speech recognition error message
+  ///
+  /// In en, this message translates to:
+  /// **'Speech error: {error}'**
+  String speechError(String error);
+
+  /// Status when finding an object
+  ///
+  /// In en, this message translates to:
+  /// **'Finding: {object}'**
+  String findingObject(String object);
+
+  /// Message when detection is stopped
+  ///
+  /// In en, this message translates to:
+  /// **'Detection stopped'**
+  String get detectionStopped;
+
+  /// Message for unimplemented pause feature
+  ///
+  /// In en, this message translates to:
+  /// **'Pause not yet implemented'**
+  String get pauseNotImplemented;
+
+  /// Message for unimplemented resume feature
+  ///
+  /// In en, this message translates to:
+  /// **'Resume not yet implemented'**
+  String get resumeNotImplemented;
+
+  /// Message for unrecognized voice command
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown command: {command}'**
+  String unknownCommand(String command);
+
+  /// Error when no cameras are found
+  ///
+  /// In en, this message translates to:
+  /// **'No cameras available on this device'**
+  String get noCamerasAvailable;
+
+  /// Error when camera permission is denied
+  ///
+  /// In en, this message translates to:
+  /// **'Camera permission denied. Please enable it in Settings > Iris > Camera.'**
+  String get cameraPermissionDenied;
+
+  /// General camera error message
+  ///
+  /// In en, this message translates to:
+  /// **'Camera error: {error}'**
+  String cameraError(String error);
+
+  /// Camera initialization error
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to initialize camera: {error}'**
+  String cameraInitializationFailed(String error);
+
+  /// Camera stream error
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to start camera stream: {error}'**
+  String cameraStreamFailed(String error);
+
+  /// Detection mode label
+  ///
+  /// In en, this message translates to:
+  /// **'Detection'**
+  String get detection;
+
+  /// Segmentation mode label
+  ///
+  /// In en, this message translates to:
+  /// **'Segmentation'**
+  String get segmentation;
+
+  /// Tooltip for stop listening button
+  ///
+  /// In en, this message translates to:
+  /// **'Stop listening'**
+  String get stopListening;
+
+  /// Tooltip for voice command button
+  ///
+  /// In en, this message translates to:
+  /// **'Voice command'**
+  String get voiceCommand;
+
+  /// Button to open app settings
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get openSettings;
+
+  /// Retry button
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// Instructions for enabling camera permission
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Camera permission in Settings, then tap Retry'**
+  String get retryInstructions;
+
+  /// Status when initializing camera
+  ///
+  /// In en, this message translates to:
+  /// **'Initializing camera...'**
+  String get initializingCamera;
+
+  /// Status when detecting objects
+  ///
+  /// In en, this message translates to:
+  /// **'Detecting...'**
+  String get detecting;
+
+  /// Status when detecting specific object
+  ///
+  /// In en, this message translates to:
+  /// **'Detecting: {object}'**
+  String detectingObject(String object);
+
+  /// Status when segmenting
+  ///
+  /// In en, this message translates to:
+  /// **'Segmenting...'**
+  String get segmenting;
+
+  /// Status when segmenting specific object
+  ///
+  /// In en, this message translates to:
+  /// **'Segmenting: {object}'**
+  String segmentingObject(String object);
+
+  /// Count of detected objects
+  ///
+  /// In en, this message translates to:
+  /// **'{count} object(s) found'**
+  String objectsFound(int count);
+
+  /// Count of segments found
+  ///
+  /// In en, this message translates to:
+  /// **'{count} segment(s) found'**
+  String segmentsFound(int count);
+
+  /// Instructions for using live camera
+  ///
+  /// In en, this message translates to:
+  /// **'Tap button below or use mic to say \"find [object]\"'**
+  String get liveCameraInstructions;
+
+  /// Button to stop detection
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Detection'**
+  String get stopDetection;
+
+  /// Button to start detection
+  ///
+  /// In en, this message translates to:
+  /// **'Start Detection'**
+  String get startDetection;
 }
 
 class _AppLocalizationsDelegate

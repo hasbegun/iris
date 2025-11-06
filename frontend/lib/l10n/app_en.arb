@@ -155,5 +155,207 @@
   "ttsRate": "Speech Rate",
   "@ttsRate": {
     "description": "Text-to-speech rate setting"
+  },
+  "dismiss": "Dismiss",
+  "@dismiss": {
+    "description": "Dismiss button"
+  },
+  "selectMedia": "Select Media",
+  "@selectMedia": {
+    "description": "Select media section header"
+  },
+  "takePhoto": "Take Photo",
+  "@takePhoto": {
+    "description": "Take photo button"
+  },
+  "pleaseEnterQuestion": "Please enter a question",
+  "@pleaseEnterQuestion": {
+    "description": "Validation message for empty prompt"
+  },
+  "loadingMedia": "Loading media...",
+  "@loadingMedia": {
+    "description": "Loading media status message"
+  },
+  "backendUrlHint": "http://localhost:9000",
+  "@backendUrlHint": {
+    "description": "Hint text for backend URL input"
+  },
+  "backendUrlHelper": "Enter the backend server URL",
+  "@backendUrlHelper": {
+    "description": "Helper text for backend URL input"
+  },
+  "modelNameHint": "Enter the model name",
+  "@modelNameHint": {
+    "description": "Helper text for model name input"
+  },
+  "liveCamera": "Live Camera",
+  "@liveCamera": {
+    "description": "Live camera screen title"
+  },
+  "microphonePermissionNeeded": "Microphone permission needed for voice commands",
+  "@microphonePermissionNeeded": {
+    "description": "Message when microphone permission is needed"
+  },
+  "speechError": "Speech error: {error}",
+  "@speechError": {
+    "description": "Speech recognition error message",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "findingObject": "Finding: {object}",
+  "@findingObject": {
+    "description": "Status when finding an object",
+    "placeholders": {
+      "object": {
+        "type": "String"
+      }
+    }
+  },
+  "detectionStopped": "Detection stopped",
+  "@detectionStopped": {
+    "description": "Message when detection is stopped"
+  },
+  "pauseNotImplemented": "Pause not yet implemented",
+  "@pauseNotImplemented": {
+    "description": "Message for unimplemented pause feature"
+  },
+  "resumeNotImplemented": "Resume not yet implemented",
+  "@resumeNotImplemented": {
+    "description": "Message for unimplemented resume feature"
+  },
+  "unknownCommand": "Unknown command: {command}",
+  "@unknownCommand": {
+    "description": "Message for unrecognized voice command",
+    "placeholders": {
+      "command": {
+        "type": "String"
+      }
+    }
+  },
+  "noCamerasAvailable": "No cameras available on this device",
+  "@noCamerasAvailable": {
+    "description": "Error when no cameras are found"
+  },
+  "cameraPermissionDenied": "Camera permission denied. Please enable it in Settings > Iris > Camera.",
+  "@cameraPermissionDenied": {
+    "description": "Error when camera permission is denied"
+  },
+  "cameraError": "Camera error: {error}",
+  "@cameraError": {
+    "description": "General camera error message",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraInitializationFailed": "Failed to initialize camera: {error}",
+  "@cameraInitializationFailed": {
+    "description": "Camera initialization error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraStreamFailed": "Failed to start camera stream: {error}",
+  "@cameraStreamFailed": {
+    "description": "Camera stream error",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "detection": "Detection",
+  "@detection": {
+    "description": "Detection mode label"
+  },
+  "segmentation": "Segmentation",
+  "@segmentation": {
+    "description": "Segmentation mode label"
+  },
+  "stopListening": "Stop listening",
+  "@stopListening": {
+    "description": "Tooltip for stop listening button"
+  },
+  "voiceCommand": "Voice command",
+  "@voiceCommand": {
+    "description": "Tooltip for voice command button"
+  },
+  "openSettings": "Open Settings",
+  "@openSettings": {
+    "description": "Button to open app settings"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button"
+  },
+  "retryInstructions": "Enable Camera permission in Settings, then tap Retry",
+  "@retryInstructions": {
+    "description": "Instructions for enabling camera permission"
+  },
+  "initializingCamera": "Initializing camera...",
+  "@initializingCamera": {
+    "description": "Status when initializing camera"
+  },
+  "detecting": "Detecting...",
+  "@detecting": {
+    "description": "Status when detecting objects"
+  },
+  "detectingObject": "Detecting: {object}",
+  "@detectingObject": {
+    "description": "Status when detecting specific object",
+    "placeholders": {
+      "object": {
+        "type": "String"
+      }
+    }
+  },
+  "segmenting": "Segmenting...",
+  "@segmenting": {
+    "description": "Status when segmenting"
+  },
+  "segmentingObject": "Segmenting: {object}",
+  "@segmentingObject": {
+    "description": "Status when segmenting specific object",
+    "placeholders": {
+      "object": {
+        "type": "String"
+      }
+    }
+  },
+  "objectsFound": "{count} object(s) found",
+  "@objectsFound": {
+    "description": "Count of detected objects",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "segmentsFound": "{count} segment(s) found",
+  "@segmentsFound": {
+    "description": "Count of segments found",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "liveCameraInstructions": "Tap button below or use mic to say \"find [object]\"",
+  "@liveCameraInstructions": {
+    "description": "Instructions for using live camera"
+  },
+  "stopDetection": "Stop Detection",
+  "@stopDetection": {
+    "description": "Button to stop detection"
+  },
+  "startDetection": "Start Detection",
+  "@startDetection": {
+    "description": "Button to start detection"
   }
 }
