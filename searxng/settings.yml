@@ -1,0 +1,76 @@
+# SearXNG Configuration for Iris
+
+general:
+  instance_name: "Iris Search"
+  privacypolicy_url: false
+  contact_url: false
+  enable_metrics: false
+
+# DOI resolver configuration
+doi_resolvers:
+  oadoi.org: 'https://oadoi.org/'
+  doi.org: 'https://doi.org/'
+  sci-hub.se: 'https://sci-hub.se/'
+  sci-hub.st: 'https://sci-hub.st/'
+
+default_doi_resolver: 'doi.org'
+
+search:
+  safe_search: 0  # 0=None, 1=Moderate, 2=Strict
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "changeme"  # Change this in production
+  limiter: false
+  image_proxy: false
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+  theme_args:
+    simple_style: auto
+
+# Enable search engines
+engines:
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: false
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+
+  - name: startpage
+    engine: startpage
+    shortcut: sp
+    disabled: false
+
+# Enable JSON format for API access
+enabled_plugins:
+  - 'Basic Calculator'
+  - 'Self Information'
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
