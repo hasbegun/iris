@@ -4,6 +4,10 @@ class ApiConstants {
   // Use network IP for Android/iOS devices (localhost won't work on physical devices)
   static const String defaultBackendUrl = 'http://192.168.4.10:9000';
 
+  // Default ML Service URL for direct connection (Phase 2 optimization)
+  // Bypass backend proxy for live camera - reduces network overhead
+  static const String defaultMLServiceUrl = 'http://192.168.4.10:9001';
+
   // API Endpoints
   static const String visionAnalyzeEndpoint = '/api/vision/analyze';
   static const String agentAnalyzeEndpoint = '/api/agent/analyze';

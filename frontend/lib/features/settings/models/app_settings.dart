@@ -5,6 +5,8 @@ import '../../../core/constants/app_constants.dart';
 /// Application settings model
 class AppSettings {
   final String backendUrl;
+  final String mlServiceUrl;  // Direct ML service URL (Phase 2 optimization)
+  final bool useDirectMLConnection;  // Bypass backend proxy for live camera (Phase 2 optimization)
   final String visionModel;
   final String chatModel;
   final bool devMode;
@@ -16,6 +18,8 @@ class AppSettings {
 
   const AppSettings({
     required this.backendUrl,
+    required this.mlServiceUrl,
+    required this.useDirectMLConnection,
     required this.visionModel,
     required this.chatModel,
     required this.devMode,
@@ -30,6 +34,8 @@ class AppSettings {
   factory AppSettings.defaults() {
     return const AppSettings(
       backendUrl: ApiConstants.defaultBackendUrl,
+      mlServiceUrl: ApiConstants.defaultMLServiceUrl,
+      useDirectMLConnection: false,  // Default to backend proxy for safety
       visionModel: AppConstants.defaultVisionModel,
       chatModel: AppConstants.defaultChatModel,
       devMode: false,
@@ -45,6 +51,8 @@ class AppSettings {
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
       backendUrl: json['backendUrl'] as String? ?? ApiConstants.defaultBackendUrl,
+      mlServiceUrl: json['mlServiceUrl'] as String? ?? ApiConstants.defaultMLServiceUrl,
+      useDirectMLConnection: json['useDirectMLConnection'] as bool? ?? false,
       visionModel: json['visionModel'] as String? ?? AppConstants.defaultVisionModel,
       chatModel: json['chatModel'] as String? ?? AppConstants.defaultChatModel,
       devMode: json['devMode'] as bool? ?? false,
@@ -60,6 +68,8 @@ class AppSettings {
   Map<String, dynamic> toJson() {
     return {
       'backendUrl': backendUrl,
+      'mlServiceUrl': mlServiceUrl,
+      'useDirectMLConnection': useDirectMLConnection,
       'visionModel': visionModel,
       'chatModel': chatModel,
       'devMode': devMode,
@@ -74,6 +84,8 @@ class AppSettings {
   /// Copy with new values
   AppSettings copyWith({
     String? backendUrl,
+    String? mlServiceUrl,
+    bool? useDirectMLConnection,
     String? visionModel,
     String? chatModel,
     bool? devMode,
@@ -85,6 +97,8 @@ class AppSettings {
   }) {
     return AppSettings(
       backendUrl: backendUrl ?? this.backendUrl,
+      mlServiceUrl: mlServiceUrl ?? this.mlServiceUrl,
+      useDirectMLConnection: useDirectMLConnection ?? this.useDirectMLConnection,
       visionModel: visionModel ?? this.visionModel,
       chatModel: chatModel ?? this.chatModel,
       devMode: devMode ?? this.devMode,

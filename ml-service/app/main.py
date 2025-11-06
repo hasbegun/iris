@@ -6,6 +6,7 @@ Refactored to use dependency injection for better testability and maintainabilit
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 import logging
 import sys
@@ -87,6 +88,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Gzip compression middleware (Phase 3 optimization)
+# Compresses responses > 500 bytes with gzip encoding
+# Reduces JSON response size by 70-80% for detection/segmentation responses
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=500,  # Only compress responses larger than 500 bytes
+    compresslevel=6    # Compression level 1-9 (6 is a good balance of speed/ratio)
 )
 
 # Include routers

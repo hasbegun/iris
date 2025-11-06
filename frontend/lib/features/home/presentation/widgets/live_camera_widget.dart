@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,91 @@ import '../../../speech/services/speech_service.dart';
 import '../../providers/live_camera_provider.dart';
 import 'live_detection_overlay.dart';
 import 'live_segmentation_overlay.dart';
+
+// ============================================================================
+// ISOLATE-COMPATIBLE TOP-LEVEL FUNCTIONS
+// These functions must be top-level to be used with compute() for Isolates
+// ============================================================================
+
+/// Data class for YUV conversion parameters
+class YuvConversionParams {
+  final Uint8List yPlane;
+  final Uint8List uvPlane;
+  final int width;
+  final int height;
+  final int yRowStride;
+  final int uvRowStride;
+  final int uvPixelStride;
+  final int sensorOrientation;
+  final TargetPlatform platform;
+
+  YuvConversionParams({
+    required this.yPlane,
+    required this.uvPlane,
+    required this.width,
+    required this.height,
+    required this.yRowStride,
+    required this.uvRowStride,
+    required this.uvPixelStride,
+    required this.sensorOrientation,
+    required this.platform,
+  });
+}
+
+/// Top-level function for YUV to RGB conversion (runs in Isolate)
+img.Image convertYUV420InIsolate(YuvConversionParams params) {
+  final image = img.Image(width: params.width, height: params.height);
+
+  // Convert YUV420 to RGB using ITU-R BT.601 standard
+  for (int row = 0; row < params.height; row++) {
+    for (int col = 0; col < params.width; col++) {
+      final int yIndex = row * params.yRowStride + col;
+      if (yIndex >= params.yPlane.length) continue;
+      final int y = params.yPlane[yIndex];
+
+      final int uvRow = row ~/ 2;
+      final int uvCol = col ~/ 2;
+      final int uvIndex = uvRow * params.uvRowStride + uvCol * params.uvPixelStride;
+
+      int u = 128, v = 128;
+
+      if (uvIndex < params.uvPlane.length - 1) {
+        v = params.uvPlane[uvIndex];
+        u = params.uvPlane[uvIndex + 1];
+      }
+
+      // ITU-R BT.601 standard conversion using integer math
+      final int c = y - 16;
+      final int d = u - 128;
+      final int e = v - 128;
+
+      final int r = ((298 * c + 409 * e + 128) >> 8).clamp(0, 255);
+      final int g = ((298 * c - 100 * d - 208 * e + 128) >> 8).clamp(0, 255);
+      final int b = ((298 * c + 516 * d + 128) >> 8).clamp(0, 255);
+
+      image.setPixelRgba(col, row, r, g, b, 255);
+    }
+  }
+
+  // Apply rotation based on camera sensor orientation
+  if (params.platform == TargetPlatform.android) {
+    if (params.sensorOrientation == 90) {
+      return img.copyRotate(image, angle: 90);
+    } else if (params.sensorOrientation == 270) {
+      return img.copyRotate(image, angle: 270);
+    } else if (params.sensorOrientation == 180) {
+      return img.copyRotate(image, angle: 180);
+    }
+  }
+
+  return image;
+}
+
+/// Top-level function for JPEG encoding (runs in Isolate)
+Uint8List encodeJpegInIsolate(img.Image image) {
+  // Reduced quality from 90 to 65 for faster encoding and smaller payload
+  return Uint8List.fromList(img.encodeJpg(image, quality: 65));
+}
 
 /// Widget for live camera with real-time object detection and voice commands
 class LiveCameraWidget extends ConsumerStatefulWidget {
@@ -29,6 +115,16 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
   String _partialCommand = '';
   bool _isProcessingFrame = false;
   DateTime? _lastFrameTime;
+  int _adaptiveFrameInterval = 200; // Start at 200ms (~5 FPS)
+  static const int _minFrameInterval = 100; // Max 10 FPS
+  static const int _maxFrameInterval = 500; // Min 2 FPS
+  static const int _targetProcessingTime = 150; // Target total time per frame
+
+  // Frame queue for Phase 3 optimization
+  CameraImage? _queuedFrame;
+  DateTime? _queuedFrameTime;
+  int _droppedFramesCount = 0;
+  static const int _maxQueueAge = 100; // Drop queued frames older than 100ms
 
   @override
   void initState() {
@@ -323,6 +419,10 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         _currentCommand = '';
         _isProcessingFrame = false;
         _lastFrameTime = null;  // Reset frame throttling
+        _adaptiveFrameInterval = 200;  // Reset to default
+        _queuedFrame = null;  // Clear queued frame
+        _queuedFrameTime = null;
+        _droppedFramesCount = 0;  // Reset dropped frames counter
       });
     } else {
       // If not mounted, update state variables directly without setState
@@ -330,6 +430,10 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       _currentCommand = '';
       _isProcessingFrame = false;
       _lastFrameTime = null;
+      _adaptiveFrameInterval = 200;
+      _queuedFrame = null;
+      _queuedFrameTime = null;
+      _droppedFramesCount = 0;
     }
 
     // Update provider state
@@ -338,28 +442,52 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     debugPrint('[LiveCamera] Stopped detection');
   }
 
-  /// Process frames from camera image stream
+  /// Process frames from camera image stream with adaptive frame rate and smart queue
   void _processImageStream(CameraImage image) {
-    // Skip if already processing or if we've processed a frame recently
+    final now = DateTime.now();
+
+    // If already processing, queue this frame (Phase 3 optimization)
     if (_isProcessingFrame) {
+      // Drop old queued frame if exists and queue new one
+      if (_queuedFrame != null) {
+        _droppedFramesCount++;
+        debugPrint('[LiveCamera] Dropped queued frame (total dropped: $_droppedFramesCount)');
+      }
+      _queuedFrame = image;
+      _queuedFrameTime = now;
+      debugPrint('[LiveCamera] Queued frame for processing');
       return;
     }
 
-    // Throttle to ~5 FPS (200ms between frames)
-    final now = DateTime.now();
-    if (_lastFrameTime != null && now.difference(_lastFrameTime!).inMilliseconds < 200) {
+    // Use adaptive frame interval (dynamically adjusted based on processing time)
+    if (_lastFrameTime != null && now.difference(_lastFrameTime!).inMilliseconds < _adaptiveFrameInterval) {
       return;
     }
 
     _lastFrameTime = now;
+    _processFrame(image);
+  }
+
+  /// Process a single frame (extracted for reuse with queued frames)
+  void _processFrame(CameraImage image) {
     _isProcessingFrame = true;
 
-    debugPrint('[LiveCamera] Processing frame: ${image.width}x${image.height}, format: ${image.format.group}');
+    debugPrint('[LiveCamera] Processing frame (adaptive interval: ${_adaptiveFrameInterval}ms): ${image.width}x${image.height}, format: ${image.format.group}');
 
     // Process frame in background
+    final frameStartTime = DateTime.now();
     _convertAndDetect(image).then((_) {
       if (mounted) {
-        debugPrint('[LiveCamera] Frame processed successfully');
+        // Calculate total processing time
+        final totalProcessingTime = DateTime.now().difference(frameStartTime).inMilliseconds;
+
+        // Adjust frame interval based on processing time (adaptive frame rate)
+        _updateAdaptiveFrameRate(totalProcessingTime);
+
+        debugPrint('[LiveCamera] Frame processed successfully in ${totalProcessingTime}ms, next interval: ${_adaptiveFrameInterval}ms');
+
+        // Check if there's a queued frame to process (Phase 3 optimization)
+        _processQueuedFrame();
       }
       _isProcessingFrame = false;
     }).catchError((e, stackTrace) {
@@ -368,10 +496,58 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         debugPrint('[LiveCamera] Stack trace: $stackTrace');
       }
       _isProcessingFrame = false;
+
+      // Check queued frame even after error
+      if (mounted) {
+        _processQueuedFrame();
+      }
     });
   }
 
+  /// Process queued frame if available and not too old
+  void _processQueuedFrame() {
+    if (_queuedFrame != null && _queuedFrameTime != null) {
+      final now = DateTime.now();
+      final age = now.difference(_queuedFrameTime!).inMilliseconds;
+
+      if (age < _maxQueueAge) {
+        // Frame is fresh enough, process it
+        debugPrint('[LiveCamera] Processing queued frame (age: ${age}ms)');
+        final frame = _queuedFrame!;
+        _queuedFrame = null;
+        _queuedFrameTime = null;
+        _lastFrameTime = now;
+        _processFrame(frame);
+      } else {
+        // Frame is too old, drop it
+        debugPrint('[LiveCamera] Dropped stale queued frame (age: ${age}ms)');
+        _queuedFrame = null;
+        _queuedFrameTime = null;
+        _droppedFramesCount++;
+      }
+    }
+  }
+
+  /// Update adaptive frame rate based on processing time
+  void _updateAdaptiveFrameRate(int processingTimeMs) {
+    // If processing is faster than target, decrease interval (increase FPS)
+    // If processing is slower than target, increase interval (decrease FPS)
+
+    if (processingTimeMs < _targetProcessingTime) {
+      // Processing is fast, we can capture frames more frequently
+      final adjustment = (_targetProcessingTime - processingTimeMs) ~/ 2;
+      _adaptiveFrameInterval = (_adaptiveFrameInterval - adjustment).clamp(_minFrameInterval, _maxFrameInterval);
+    } else if (processingTimeMs > _targetProcessingTime) {
+      // Processing is slow, we need to capture frames less frequently
+      final adjustment = (processingTimeMs - _targetProcessingTime) ~/ 2;
+      _adaptiveFrameInterval = (_adaptiveFrameInterval + adjustment).clamp(_minFrameInterval, _maxFrameInterval);
+    }
+
+    debugPrint('[LiveCamera] Adaptive FPS: ${(1000 / _adaptiveFrameInterval).toStringAsFixed(1)} FPS (interval: ${_adaptiveFrameInterval}ms, processing: ${processingTimeMs}ms)');
+  }
+
   /// Convert CameraImage to JPEG bytes and run detection
+  /// Now uses Isolates for YUV conversion and JPEG encoding (Phase 1 optimization)
   Future<void> _convertAndDetect(CameraImage image) async {
     try {
       // Check if widget is still mounted before processing
@@ -380,11 +556,13 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         return;
       }
 
+      final startTime = DateTime.now();
       debugPrint('[LiveCamera] Converting camera image...');
 
-      // Convert CameraImage to image package format
-      final img.Image convertedImage = _convertCameraImage(image);
-      debugPrint('[LiveCamera] Image converted: ${convertedImage.width}x${convertedImage.height}');
+      // Convert CameraImage to image package format using Isolate
+      final img.Image convertedImage = await _convertCameraImageAsync(image);
+      final conversionTime = DateTime.now().difference(startTime).inMilliseconds;
+      debugPrint('[LiveCamera] Image converted in ${conversionTime}ms: ${convertedImage.width}x${convertedImage.height}');
 
       // Check again before encoding (expensive operation)
       if (!mounted) {
@@ -392,9 +570,11 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         return;
       }
 
-      // Encode to JPEG with high quality for better detection
-      final Uint8List jpegBytes = Uint8List.fromList(img.encodeJpg(convertedImage, quality: 90));
-      debugPrint('[LiveCamera] JPEG encoded: ${jpegBytes.length} bytes');
+      // Encode to JPEG using Isolate (reduced quality to 65 for performance)
+      final encodingStartTime = DateTime.now();
+      final Uint8List jpegBytes = await compute(encodeJpegInIsolate, convertedImage);
+      final encodingTime = DateTime.now().difference(encodingStartTime).inMilliseconds;
+      debugPrint('[LiveCamera] JPEG encoded in ${encodingTime}ms: ${jpegBytes.length} bytes');
 
       // Final check before sending to provider
       if (!mounted) {
@@ -403,6 +583,8 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       }
 
       // Send to provider for detection
+      final totalTime = DateTime.now().difference(startTime).inMilliseconds;
+      debugPrint('[LiveCamera] Total client processing: ${totalTime}ms (conversion: ${conversionTime}ms, encoding: ${encodingTime}ms)');
       debugPrint('[LiveCamera] Sending to provider...');
       await ref.read(liveCameraProvider.notifier).processFrame(jpegBytes);
 
@@ -416,7 +598,34 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     }
   }
 
-  /// Convert CameraImage to img.Image
+  /// Convert CameraImage to img.Image asynchronously using Isolate
+  Future<img.Image> _convertCameraImageAsync(CameraImage cameraImage) async {
+    // Create image from YUV format using Isolate
+    if (cameraImage.format.group == ImageFormatGroup.yuv420) {
+      // Prepare parameters for Isolate
+      final params = YuvConversionParams(
+        yPlane: cameraImage.planes[0].bytes,
+        uvPlane: cameraImage.planes[1].bytes,
+        width: cameraImage.width,
+        height: cameraImage.height,
+        yRowStride: cameraImage.planes[0].bytesPerRow,
+        uvRowStride: cameraImage.planes[1].bytesPerRow,
+        uvPixelStride: cameraImage.planes[1].bytesPerPixel ?? 1,
+        sensorOrientation: _cameraController?.description.sensorOrientation ?? 0,
+        platform: defaultTargetPlatform,
+      );
+
+      // Run conversion in Isolate
+      return await compute(convertYUV420InIsolate, params);
+    } else if (cameraImage.format.group == ImageFormatGroup.bgra8888) {
+      // BGRA conversion is fast, no need for Isolate
+      return _convertBGRA8888ToImage(cameraImage);
+    } else {
+      throw Exception('Unsupported image format: ${cameraImage.format.group}');
+    }
+  }
+
+  /// Convert CameraImage to img.Image (legacy synchronous method, kept for compatibility)
   img.Image _convertCameraImage(CameraImage cameraImage) {
     // Create image from YUV format
     if (cameraImage.format.group == ImageFormatGroup.yuv420) {
