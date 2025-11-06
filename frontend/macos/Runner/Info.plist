@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Iris needs access to your microphone for speech-to-text input.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Iris needs access to your camera for live object detection and segmentation.</string>
 </dict>
 </plist>

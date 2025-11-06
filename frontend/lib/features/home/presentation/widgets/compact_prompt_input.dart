@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iris/l10n/app_localizations.dart';
-import '../../../../core/providers/permission_provider.dart';
-import '../../../prompt/providers/prompt_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../../prompt/providers/prompt_provider.dart' show
+    promptProvider,
+    promptTextProvider,
+    isRecordingProvider,
+    isListeningProvider,
+    speechConfidenceProvider,
+    promptErrorProvider;
 
 /// Compact Gemini-style prompt input widget
 class CompactPromptInput extends ConsumerStatefulWidget {
@@ -41,7 +47,6 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
   }
 
   Future<void> _handleMicrophonePress() async {
-    final permissionService = ref.read(permissionServiceProvider);
     final isRecording = ref.read(isRecordingProvider);
 
     if (isRecording) {
@@ -49,9 +54,8 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
       return;
     }
 
-    final granted = await permissionService.requestMicrophoneWithDialog(context);
-    if (!granted) return;
-
+    // Start recording - speech_to_text will request permissions internally if needed
+    debugPrint('[CompactPromptInput] Starting recording...');
     await ref.read(promptProvider.notifier).startRecording();
   }
 
@@ -76,6 +80,8 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
     final promptText = ref.watch(promptTextProvider);
     final isRecording = ref.watch(isRecordingProvider);
     final isListening = ref.watch(isListeningProvider);
+    final confidence = ref.watch(speechConfidenceProvider);
+    final error = ref.watch(promptErrorProvider);
 
     // Update text field when speech recognition updates
     if (isRecording && promptText != _controller.text) {
@@ -102,7 +108,7 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Recording indicator
+            // Recording indicator with confidence
             if (isRecording)
               Container(
                 width: double.infinity,
@@ -123,6 +129,77 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
                         color: Theme.of(context).colorScheme.onErrorContainer,
                         fontWeight: FontWeight.w500,
                       ),
+                    ),
+                    if (confidence > 0) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getConfidenceColor(confidence, context),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${(confidence * 100).toInt()}%',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+            // Error indicator
+            if (error != null && !isRecording)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: Theme.of(context).colorScheme.error,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        error,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    // Show Settings button if error is about permissions
+                    if (error.toLowerCase().contains('settings') ||
+                        error.toLowerCase().contains('permission'))
+                      TextButton(
+                        onPressed: () {
+                          openAppSettings();
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Settings',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () => ref.read(promptProvider.notifier).clearError(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
@@ -225,5 +302,16 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
         ),
       ),
     );
+  }
+
+  /// Get color based on confidence level
+  Color _getConfidenceColor(double confidence, BuildContext context) {
+    if (confidence >= 0.8) {
+      return Colors.green.shade700;
+    } else if (confidence >= 0.5) {
+      return Colors.orange.shade700;
+    } else {
+      return Colors.red.shade700;
+    }
   }
 }

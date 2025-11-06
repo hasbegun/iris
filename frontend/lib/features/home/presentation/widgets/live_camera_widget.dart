@@ -132,7 +132,8 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
-    _initializeSpeechService();
+    // Don't request permissions on init - only when user clicks microphone
+    _setupSpeechServiceCallbacks();
   }
 
   @override
@@ -140,8 +141,32 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     debugPrint('[LiveCamera] Disposing widget...');
     WidgetsBinding.instance.removeObserver(this);
 
-    // Stop detection first
-    _stopDetection();
+    // Stop image stream without calling setState
+    try {
+      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+        _cameraController!.stopImageStream();
+        debugPrint('[LiveCamera] Stopped image stream');
+      }
+    } catch (e) {
+      debugPrint('[LiveCamera] Error stopping image stream: $e');
+    }
+
+    // Update state variables directly without setState (widget is disposing)
+    _isDetecting = false;
+    _currentCommand = '';
+    _isProcessingFrame = false;
+    _lastFrameTime = null;
+    _adaptiveFrameInterval = 200;
+    _queuedFrame = null;
+    _queuedFrameTime = null;
+    _droppedFramesCount = 0;
+
+    // Update provider state
+    try {
+      ref.read(liveCameraProvider.notifier).stopDetection();
+    } catch (e) {
+      debugPrint('[LiveCamera] Error updating provider during dispose: $e');
+    }
 
     // Dispose camera controller
     _cameraController?.dispose().then((_) {
@@ -171,31 +196,9 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     }
   }
 
-  /// Initialize speech service
-  Future<void> _initializeSpeechService() async {
-    // Request microphone permission first
-    var micStatus = await Permission.microphone.status;
-    debugPrint('[LiveCamera] Current microphone permission status: $micStatus');
-
-    if (!micStatus.isGranted) {
-      debugPrint('[LiveCamera] Requesting microphone permission...');
-      micStatus = await Permission.microphone.request();
-      debugPrint('[LiveCamera] Microphone permission after request: $micStatus');
-    }
-
-    if (!micStatus.isGranted) {
-      debugPrint('[LiveCamera] Microphone permission not granted, speech features disabled');
-      if (mounted) {
-        final l10n = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.microphonePermissionNeeded),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
-    }
+  /// Setup speech service callbacks (without requesting permissions)
+  void _setupSpeechServiceCallbacks() {
+    debugPrint('[LiveCamera] Setting up speech service callbacks...');
 
     // Set up callbacks
     _speechService.onCommandRecognized = (command) {
@@ -235,8 +238,7 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
       }
     };
 
-    // Initialize
-    await _speechService.initialize();
+    debugPrint('[LiveCamera] Speech service callbacks configured');
   }
 
   /// Handle recognized voice command
@@ -739,14 +741,37 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
   }
 
   /// Toggle voice command listening
-  void _toggleVoiceCommand() async {
+  Future<void> _toggleVoiceCommand() async {
     if (_isListening) {
       // Stop listening
       await _speechService.stopListening();
-    } else {
-      // Start listening
-      await _speechService.startListening();
+      return;
     }
+
+    // Initialize speech service - this will request permissions internally if needed
+    debugPrint('[LiveCamera] Initializing speech service...');
+    final initialized = await _speechService.initialize();
+
+    if (!initialized) {
+      debugPrint('[LiveCamera] Speech initialization failed - permissions may have been denied');
+      if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.speechError('Speech recognition not available. Please enable microphone and speech recognition in Settings.')),
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Permissions granted - start listening
+    debugPrint('[LiveCamera] Speech initialized, starting listening...');
+    await _speechService.startListening();
   }
 
   /// Build toggle switch for detection/segmentation mode

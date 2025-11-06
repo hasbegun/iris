@@ -21,6 +21,19 @@ class PermissionService {
     return status.isGranted;
   }
 
+  /// Request speech recognition permission (iOS-specific)
+  Future<bool> requestSpeechPermission() async {
+    final status = await Permission.speech.request();
+    return status.isGranted;
+  }
+
+  /// Request both microphone and speech recognition permissions for voice input
+  Future<bool> requestVoicePermissions() async {
+    final micGranted = await requestMicrophonePermission();
+    final speechGranted = await requestSpeechPermission();
+    return micGranted && speechGranted;
+  }
+
   /// Check if camera permission is granted
   Future<bool> isCameraPermissionGranted() async {
     return await Permission.camera.isGranted;
@@ -36,6 +49,18 @@ class PermissionService {
     return await Permission.microphone.isGranted;
   }
 
+  /// Check if speech recognition permission is granted
+  Future<bool> isSpeechPermissionGranted() async {
+    return await Permission.speech.isGranted;
+  }
+
+  /// Check if both microphone and speech permissions are granted
+  Future<bool> areVoicePermissionsGranted() async {
+    final micGranted = await isMicrophonePermissionGranted();
+    final speechGranted = await isSpeechPermissionGranted();
+    return micGranted && speechGranted;
+  }
+
   /// Request permission with user-friendly dialog
   Future<bool> requestPermissionWithDialog({
     required BuildContext context,
@@ -45,12 +70,15 @@ class PermissionService {
   }) async {
     // Check current status
     final status = await permission.status;
+    debugPrint('[PermissionService] Checking $permission - status: $status');
 
     if (status.isGranted) {
+      debugPrint('[PermissionService] $permission already granted');
       return true;
     }
 
     if (status.isPermanentlyDenied) {
+      debugPrint('[PermissionService] $permission permanently denied - showing settings dialog');
       // Show dialog to open app settings
       if (context.mounted) {
         final shouldOpenSettings = await _showPermissionDialog(
@@ -68,7 +96,9 @@ class PermissionService {
     }
 
     // Request permission
+    debugPrint('[PermissionService] Requesting $permission...');
     final result = await permission.request();
+    debugPrint('[PermissionService] $permission request result: $result');
     return result.isGranted;
   }
 
@@ -126,5 +156,37 @@ class PermissionService {
       title: 'Microphone Access',
       message: 'Iris needs access to your microphone to enable voice input for prompts.',
     );
+  }
+
+  /// Request voice permissions (microphone + speech recognition) with dialog
+  Future<bool> requestVoicePermissionsWithDialog(BuildContext context) async {
+    debugPrint('[PermissionService] requestVoicePermissionsWithDialog called');
+
+    // First request microphone permission
+    debugPrint('[PermissionService] Requesting microphone permission...');
+    final micGranted = await requestPermissionWithDialog(
+      context: context,
+      permission: Permission.microphone,
+      title: 'Microphone Access',
+      message: 'Iris needs access to your microphone to enable voice input for prompts.',
+    );
+
+    if (!micGranted) {
+      debugPrint('[PermissionService] Microphone permission denied');
+      return false;
+    }
+    debugPrint('[PermissionService] Microphone permission granted');
+
+    // Then request speech recognition permission (iOS-specific)
+    debugPrint('[PermissionService] Requesting speech recognition permission...');
+    final speechGranted = await requestPermissionWithDialog(
+      context: context,
+      permission: Permission.speech,
+      title: 'Speech Recognition Access',
+      message: 'Iris needs speech recognition to convert your voice into text for prompt input.',
+    );
+
+    debugPrint('[PermissionService] Speech permission result: $speechGranted');
+    return speechGranted;
   }
 }

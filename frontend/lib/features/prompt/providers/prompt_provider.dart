@@ -19,7 +19,8 @@ class PromptNotifier extends StateNotifier<PromptState> {
     state = state.copyWith(text: '', clearError: true);
   }
 
-  /// Start voice recording
+  /// Start voice recording with enhanced error handling
+  /// Note: Permissions should be requested via PermissionService before calling this
   Future<void> startRecording() async {
     try {
       state = state.copyWith(isRecording: true, clearError: true);
@@ -29,16 +30,34 @@ class PromptNotifier extends StateNotifier<PromptState> {
       if (!initialized) {
         state = state.copyWith(
           isRecording: false,
-          error: 'Speech recognition not available',
+          error: 'Speech recognition not available. Please check permissions in Settings.',
         );
         return;
       }
 
-      // Start listening
+      // Start listening with callbacks
       state = state.copyWith(isListening: true);
       await _speechService.startListening(
-        onResult: (recognizedWords) {
-          state = state.copyWith(text: recognizedWords);
+        onResult: (result) {
+          state = state.copyWith(
+            text: result.text,
+            confidence: result.confidence,
+            isFinalResult: result.isFinal,
+          );
+        },
+        onError: (errorMsg) {
+          state = state.copyWith(
+            isRecording: false,
+            isListening: false,
+            error: errorMsg,
+          );
+        },
+        onTimeout: () {
+          state = state.copyWith(
+            isRecording: false,
+            isListening: false,
+            error: 'Recording timeout. Please try again.',
+          );
         },
       );
     } catch (e) {
@@ -46,7 +65,7 @@ class PromptNotifier extends StateNotifier<PromptState> {
       state = state.copyWith(
         isRecording: false,
         isListening: false,
-        error: 'Failed to start recording: ${e.toString()}',
+        error: 'Failed to start recording. Please check your microphone permissions.',
       );
     }
   }
@@ -65,7 +84,7 @@ class PromptNotifier extends StateNotifier<PromptState> {
       state = state.copyWith(
         isRecording: false,
         isListening: false,
-        error: 'Failed to stop recording: ${e.toString()}',
+        error: 'Failed to stop recording',
       );
     }
   }
@@ -78,6 +97,8 @@ class PromptNotifier extends StateNotifier<PromptState> {
         isRecording: false,
         isListening: false,
         text: '', // Clear text on cancel
+        confidence: 0.0,
+        isFinalResult: false,
         clearError: true,
       );
     } catch (e) {
@@ -85,6 +106,8 @@ class PromptNotifier extends StateNotifier<PromptState> {
       state = state.copyWith(
         isRecording: false,
         isListening: false,
+        confidence: 0.0,
+        isFinalResult: false,
       );
     }
   }
@@ -130,4 +153,14 @@ final isListeningProvider = Provider<bool>((ref) {
 /// Provider for prompt error
 final promptErrorProvider = Provider<String?>((ref) {
   return ref.watch(promptProvider).error;
+});
+
+/// Provider for speech confidence
+final speechConfidenceProvider = Provider<double>((ref) {
+  return ref.watch(promptProvider).confidence;
+});
+
+/// Provider for confidence level string
+final confidenceLevelProvider = Provider<String>((ref) {
+  return ref.watch(promptProvider).confidenceLevel;
 });

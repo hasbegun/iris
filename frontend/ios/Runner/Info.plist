@@ -51,5 +51,7 @@
 	<string>Iris needs access to your photo library to select images and videos for vision analysis.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Iris needs access to your microphone to enable voice input for prompts.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Iris needs speech recognition to convert your voice into text for prompt input.</string>
 </dict>
 </plist>
