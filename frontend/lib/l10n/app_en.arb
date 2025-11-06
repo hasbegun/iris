@@ -1,0 +1,159 @@
+{
+  "@@locale": "en",
+  "appTitle": "Iris",
+  "@appTitle": {
+    "description": "Application title"
+  },
+  "home": "Home",
+  "@home": {
+    "description": "Home screen title"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings screen title"
+  },
+  "selectImage": "Select Image",
+  "@selectImage": {
+    "description": "Button to select an image"
+  },
+  "selectVideo": "Select Video",
+  "@selectVideo": {
+    "description": "Button to select a video"
+  },
+  "enterPrompt": "Ask a question about the media...",
+  "@enterPrompt": {
+    "description": "Placeholder for prompt input"
+  },
+  "promptHint": "Ask a question about the image...",
+  "@promptHint": {
+    "description": "Hint text for prompt input field"
+  },
+  "send": "Send",
+  "@send": {
+    "description": "Send button"
+  },
+  "speak": "Speak",
+  "@speak": {
+    "description": "Speak button for voice input"
+  },
+  "listening": "Listening...",
+  "@listening": {
+    "description": "Status when recording voice"
+  },
+  "starting": "Starting...",
+  "@starting": {
+    "description": "Status when starting voice recognition"
+  },
+  "stopRecording": "Stop Recording",
+  "@stopRecording": {
+    "description": "Stop recording button"
+  },
+  "startRecording": "Start Recording",
+  "@startRecording": {
+    "description": "Start recording button"
+  },
+  "processing": "Processing...",
+  "@processing": {
+    "description": "Processing status"
+  },
+  "readAloud": "Read Aloud",
+  "@readAloud": {
+    "description": "Button to read response aloud"
+  },
+  "backendUrl": "Backend URL",
+  "@backendUrl": {
+    "description": "Backend server URL setting"
+  },
+  "visionModel": "Vision Model",
+  "@visionModel": {
+    "description": "Vision model setting"
+  },
+  "chatModel": "Chat Model",
+  "@chatModel": {
+    "description": "Chat model setting"
+  },
+  "devMode": "Developer Mode",
+  "@devMode": {
+    "description": "Developer mode setting"
+  },
+  "theme": "Theme",
+  "@theme": {
+    "description": "Theme setting"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language setting"
+  },
+  "light": "Light",
+  "@light": {
+    "description": "Light theme"
+  },
+  "dark": "Dark",
+  "@dark": {
+    "description": "Dark theme"
+  },
+  "system": "System",
+  "@system": {
+    "description": "System theme"
+  },
+  "english": "English",
+  "@english": {
+    "description": "English language"
+  },
+  "korean": "Korean",
+  "@korean": {
+    "description": "Korean language"
+  },
+  "japanese": "Japanese",
+  "@japanese": {
+    "description": "Japanese language"
+  },
+  "spanish": "Spanish",
+  "@spanish": {
+    "description": "Spanish language"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button"
+  },
+  "error": "Error",
+  "@error": {
+    "description": "Error title"
+  },
+  "connectionError": "Could not connect to server. Please check your settings.",
+  "@connectionError": {
+    "description": "Connection error message"
+  },
+  "invalidUrl": "Invalid URL format",
+  "@invalidUrl": {
+    "description": "Invalid URL error"
+  },
+  "noMediaSelected": "No media selected",
+  "@noMediaSelected": {
+    "description": "No media selected message"
+  },
+  "generalSettings": "General",
+  "@generalSettings": {
+    "description": "General settings section"
+  },
+  "developerSettings": "Developer",
+  "@developerSettings": {
+    "description": "Developer settings section"
+  },
+  "speechSettings": "Speech",
+  "@speechSettings": {
+    "description": "Speech settings section"
+  },
+  "ttsVoice": "TTS Voice",
+  "@ttsVoice": {
+    "description": "Text-to-speech voice setting"
+  },
+  "ttsRate": "Speech Rate",
+  "@ttsRate": {
+    "description": "Text-to-speech rate setting"
+  }
+}

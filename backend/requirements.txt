@@ -1,0 +1,22 @@
+# FastAPI and server
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+
+# Async HTTP client
+aiohttp==3.10.10
+
+# Configuration
+pydantic==2.9.2
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+
+# Video processing
+opencv-python==4.10.0.84
+Pillow==10.4.0
+
+# LangChain and AI agents
+langchain==0.3.13
+langchain-core>=0.3.26
+langchain-community==0.3.13
+langchain-ollama==0.2.1  # For ReAct agent with Ollama

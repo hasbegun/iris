@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  # Backend - FastAPI application
+  # COMMENTED OUT FOR LOCAL DEVELOPMENT (GPU access needed)
+  # To run backend locally: make dev-local
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iris-backend
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/data:/app/data
+      - ./backend/models:/app/models
+      - ./backend/.env:/app/.env:ro  # Mount .env as read-only (primary config)
+    environment:
+      # Note: These environment variables override .env file values
+      # Only include variables that MUST be different for Docker
+      # All other configs should be in backend/.env
+      - OLLAMA_HOST=http://host.docker.internal:11434  # Docker-specific: access host Ollama
+      - SEARXNG_URL=http://searxng:8080  # Docker-specific: internal network
+      - CHROMADB_HOST=http://chromadb:8000  # Docker-specific: internal network
+      - ML_SERVICE_URL=http://ml-service:9001  # Docker-specific: internal network
+      - TORCH_FORCE_WEIGHTS_ONLY_LOAD=0  # Allow loading YOLO models with PyTorch 2.6+
+    depends_on:
+      - searxng
+      - chromadb
+      - ml-service
+    networks:
+      - iris-network
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # SearXNG - Privacy-respecting metasearch engine
+  searxng:
+    image: searxng/searxng:latest
+    container_name: iris-searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-changeme}
+    networks:
+      - iris-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ChromaDB - Vector database for RAG
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: iris-chromadb
+    ports:
+      - "8002:8000"  # Changed from 8001 to 8002 to avoid conflict with ML service
+    volumes:
+      - ./chromadb_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - iris-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ML Service - YOLO Object Detection
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: iris-ml-service
+    ports:
+      - "9001:9001"
+    volumes:
+      - ./ml-service/app:/app/app
+      - ml-models:/app/models  # Persistent model storage
+    environment:
+      - ENVIRONMENT=development
+      - DEVICE=cpu  # Change to 'cuda' for GPU
+      - HOST=0.0.0.0
+      - PORT=9001
+    networks:
+      - iris-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s  # Models need time to load
+    # Uncomment for GPU support (requires nvidia-docker)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  iris-network:
+    driver: bridge
+
+volumes:
+  chromadb_data:
+  ml-models:

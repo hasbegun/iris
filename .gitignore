@@ -1,0 +1,20 @@
+.DS_Store
+**/__pycache__
+
+# Environment variables
+.env
+*.env
+!.env.example
+
+# Integration test artifacts
+backend/tests/integration/test_videos/*.mp4
+backend/tests/integration/test_videos/*.avi
+backend/tests/integration/test_videos/*.mov
+backend/tests/integration/results/
+*.pyc
+*.pyo
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
+test-imgs/
