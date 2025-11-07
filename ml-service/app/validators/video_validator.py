@@ -2,27 +2,10 @@
 Video validation for ML service
 """
 from typing import Optional
-from dataclasses import dataclass
 import logging
+from app.models.validation import ValidationResult
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ValidationResult:
-    """Result of validation operation"""
-    is_valid: bool
-    error_message: Optional[str] = None
-
-    @classmethod
-    def success(cls):
-        """Create successful validation result"""
-        return cls(is_valid=True)
-
-    @classmethod
-    def failure(cls, message: str):
-        """Create failed validation result"""
-        return cls(is_valid=False, error_message=message)
 
 
 class VideoValidator:

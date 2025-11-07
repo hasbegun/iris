@@ -31,6 +31,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["yolo"])
 
 
+# Utility functions
+def parse_classes(classes: Optional[str]) -> Optional[list]:
+    """Parse comma-separated class names into a list"""
+    if not classes:
+        return None
+    return [c.strip() for c in classes.split(",") if c.strip()]
+
+
+
 @router.post("/detect", response_model=DetectionResponse)
 async def detect_objects(
     image: UploadFile = File(..., description="Image file to analyze"),
@@ -289,9 +298,7 @@ async def detect_objects_in_video(
         video_bytes = await video.read()
 
         # Parse classes
-        class_list = None
-        if classes:
-            class_list = [c.strip() for c in classes.split(",") if c.strip()]
+        class_list = parse_classes(classes)
 
         # Process video
         result = await video_service.detect_objects_in_video(
@@ -356,9 +363,7 @@ async def segment_objects_in_video(
         video_bytes = await video.read()
 
         # Parse classes
-        class_list = None
-        if classes:
-            class_list = [c.strip() for c in classes.split(",") if c.strip()]
+        class_list = parse_classes(classes)
 
         # Process video with segmentation
         result = await video_service.segment_objects_in_video(
@@ -464,79 +469,14 @@ async def detect_video_frame(
     - frame_index: Which frame was extracted
     """
     try:
-        import cv2
-        import numpy as np
-        import tempfile
-        import os
-        import base64
-        from io import BytesIO
-        from PIL import Image
+        from app.handlers.video_handler import VideoHandler
 
-        # Read video
-        video_bytes = await video.read()
-
-        # Write to temp file
-        fd, temp_path = tempfile.mkstemp(suffix='.mp4')
-        try:
-            os.write(fd, video_bytes)
-            os.close(fd)
-
-            # Open video and extract middle frame
-            cap = cv2.VideoCapture(temp_path)
-            if not cap.isOpened():
-                raise HTTPException(status_code=400, detail="Failed to open video file")
-
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            middle_frame_idx = total_frames // 2
-
-            # Seek to middle frame
-            cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame_idx)
-            ret, frame = cap.read()
-            cap.release()
-
-            if not ret:
-                raise HTTPException(status_code=400, detail="Failed to extract frame from video")
-
-            # Convert frame to RGB and then to JPEG bytes
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(frame_rgb)
-
-            # Convert to JPEG bytes
-            img_byte_arr = BytesIO()
-            pil_image.save(img_byte_arr, format='JPEG', quality=85)
-            frame_bytes = img_byte_arr.getvalue()
-
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-        # Run detection on the extracted frame
-        # Parse classes
-        class_list = None
-        if classes:
-            class_list = [c.strip() for c in classes.split(",") if c.strip()]
-
-        # Detect objects in the frame
-        result = await service.detect_objects(
-            image_bytes=frame_bytes,
+        handler = VideoHandler(yolo_service=service)
+        return await handler.process_single_frame_detection(
+            video=video,
             confidence=confidence,
-            classes=class_list
+            classes=classes
         )
-
-        # Encode frame as base64 for JSON response
-        frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
-
-        # Return frame + detections
-        return {
-            "status": "success",
-            "frame_base64": frame_base64,
-            "frame_index": middle_frame_idx,
-            "total_frames": total_frames,
-            "detections": result.get("detections", []),
-            "image_shape": result.get("image_shape", []),
-            "count": result.get("count", 0)
-        }
-
     except HTTPException:
         raise
     except Exception as e:
@@ -580,120 +520,25 @@ async def detect_video_frames(
     ```
     """
     try:
-        import cv2
-        import numpy as np
-        import tempfile
-        import os
-        import base64
-        from io import BytesIO
-        from PIL import Image
+        from app.handlers.video_handler import VideoHandler
 
-        # Read video
-        video_bytes = await video.read()
+        handler = VideoHandler(yolo_service=service)
+        result = await handler.process_multiple_frames_detection(
+            video=video,
+            confidence=confidence,
+            classes=classes,
+            frame_interval=frame_interval,
+            max_frames=max_frames
+        )
 
-        # Write to temp file
-        fd, temp_path = tempfile.mkstemp(suffix='.mp4')
-        try:
-            os.write(fd, video_bytes)
-            os.close(fd)
-
-            # Open video
-            cap = cv2.VideoCapture(temp_path)
-            if not cap.isOpened():
-                raise HTTPException(status_code=400, detail="Failed to open video file")
-
-            # Get video properties
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            duration = total_frames / fps if fps > 0 else 0
-
-            logger.info(f"Video: {total_frames} frames, {fps:.2f} FPS, {duration:.2f}s duration")
-
-            # Calculate frame indices to extract
-            frames_to_extract = []
-            current_time = 0.0
-
-            while current_time < duration and len(frames_to_extract) < max_frames:
-                frame_index = int(current_time * fps)
-                if frame_index < total_frames:
-                    frames_to_extract.append({
-                        'index': frame_index,
-                        'timestamp': current_time
-                    })
-                current_time += frame_interval
-
-            logger.info(f"Extracting {len(frames_to_extract)} frames from video")
-
-            # Parse classes
-            class_list = None
-            if classes:
-                class_list = [c.strip() for c in classes.split(",") if c.strip()]
-
-            # Extract frames and run detection
-            results = []
-
-            for frame_info in frames_to_extract:
-                frame_idx = frame_info['index']
-                timestamp = frame_info['timestamp']
-
-                # Seek to frame
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
-
-                if not ret:
-                    logger.warning(f"Failed to extract frame {frame_idx}, skipping")
-                    continue
-
-                # Convert frame to RGB and then to JPEG bytes
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_image = Image.fromarray(frame_rgb)
-
-                # Convert to JPEG bytes
-                img_byte_arr = BytesIO()
-                pil_image.save(img_byte_arr, format='JPEG', quality=85)
-                frame_bytes = img_byte_arr.getvalue()
-
-                # Run detection on this frame
-                detection_result = await service.detect(
-                    image_bytes=frame_bytes,
-                    confidence=confidence,
-                    classes=class_list
-                )
-
-                # Encode frame as base64
-                frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
-
-                # Build result for this frame
-                results.append({
-                    "frame_index": frame_idx,
-                    "timestamp": round(timestamp, 2),
-                    "frame_base64": frame_base64,
-                    "detections": detection_result.get("detections", []),
-                    "image_shape": detection_result.get("image_shape", []),
-                    "count": detection_result.get("count", 0)
-                })
-
-                logger.info(f"Frame {frame_idx} ({timestamp:.2f}s): {detection_result.get('count', 0)} detections")
-
-            cap.release()
-
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-        # Calculate total detections across all frames
-        total_detections = sum(f["count"] for f in results)
-
-        logger.info(f"Processed {len(results)} frames, total {total_detections} detections")
-
-        # Return results
+        # Adjust response format for backward compatibility
         return {
-            "status": "success",
-            "total_frames_in_video": total_frames,
-            "video_duration": round(duration, 2),
-            "frames_analyzed": len(results),
-            "total_detections": total_detections,
-            "frames": results
+            "status": result["status"],
+            "total_frames_in_video": result["video_info"]["total_frames"],
+            "video_duration": result["video_info"]["duration"],
+            "frames_analyzed": result["total_frames_processed"],
+            "total_detections": result["total_detections"],
+            "frames": result["frames"]
         }
 
     except HTTPException:
@@ -739,120 +584,25 @@ async def segment_video_frames(
     ```
     """
     try:
-        import cv2
-        import numpy as np
-        import tempfile
-        import os
-        import base64
-        from io import BytesIO
-        from PIL import Image
+        from app.handlers.video_handler import VideoHandler
 
-        # Read video
-        video_bytes = await video.read()
+        handler = VideoHandler(yolo_service=service)
+        result = await handler.process_multiple_frames_segmentation(
+            video=video,
+            confidence=confidence,
+            classes=classes,
+            frame_interval=frame_interval,
+            max_frames=max_frames
+        )
 
-        # Write to temp file
-        fd, temp_path = tempfile.mkstemp(suffix='.mp4')
-        try:
-            os.write(fd, video_bytes)
-            os.close(fd)
-
-            # Open video
-            cap = cv2.VideoCapture(temp_path)
-            if not cap.isOpened():
-                raise HTTPException(status_code=400, detail="Failed to open video file")
-
-            # Get video properties
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            duration = total_frames / fps if fps > 0 else 0
-
-            logger.info(f"Video: {total_frames} frames, {fps:.2f} FPS, {duration:.2f}s duration")
-
-            # Calculate frame indices to extract
-            frames_to_extract = []
-            current_time = 0.0
-
-            while current_time < duration and len(frames_to_extract) < max_frames:
-                frame_index = int(current_time * fps)
-                if frame_index < total_frames:
-                    frames_to_extract.append({
-                        'index': frame_index,
-                        'timestamp': current_time
-                    })
-                current_time += frame_interval
-
-            logger.info(f"Extracting {len(frames_to_extract)} frames for segmentation")
-
-            # Parse classes
-            class_list = None
-            if classes:
-                class_list = [c.strip() for c in classes.split(",") if c.strip()]
-
-            # Extract frames and run segmentation
-            results = []
-
-            for frame_info in frames_to_extract:
-                frame_idx = frame_info['index']
-                timestamp = frame_info['timestamp']
-
-                # Seek to frame
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
-
-                if not ret:
-                    logger.warning(f"Failed to extract frame {frame_idx}, skipping")
-                    continue
-
-                # Convert frame to RGB and then to JPEG bytes
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                pil_image = Image.fromarray(frame_rgb)
-
-                # Convert to JPEG bytes
-                img_byte_arr = BytesIO()
-                pil_image.save(img_byte_arr, format='JPEG', quality=85)
-                frame_bytes = img_byte_arr.getvalue()
-
-                # Run segmentation on this frame
-                segmentation_result = await service.segment(
-                    image_bytes=frame_bytes,
-                    confidence=confidence,
-                    classes=class_list
-                )
-
-                # Encode frame as base64
-                frame_base64 = base64.b64encode(frame_bytes).decode('utf-8')
-
-                # Build result for this frame
-                results.append({
-                    "frame_index": frame_idx,
-                    "timestamp": round(timestamp, 2),
-                    "frame_base64": frame_base64,
-                    "segments": segmentation_result.get("segments", []),
-                    "image_shape": segmentation_result.get("image_shape", []),
-                    "count": segmentation_result.get("count", 0)
-                })
-
-                logger.info(f"Frame {frame_idx} ({timestamp:.2f}s): {segmentation_result.get('count', 0)} segments")
-
-            cap.release()
-
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-        # Calculate total segments across all frames
-        total_segments = sum(f["count"] for f in results)
-
-        logger.info(f"Segmented {len(results)} frames, total {total_segments} segments")
-
-        # Return results
+        # Adjust response format for backward compatibility
         return {
-            "status": "success",
-            "total_frames_in_video": total_frames,
-            "video_duration": round(duration, 2),
-            "frames_analyzed": len(results),
-            "total_segments": total_segments,
-            "frames": results
+            "status": result["status"],
+            "total_frames_in_video": result["video_info"]["total_frames"],
+            "video_duration": result["video_info"]["duration"],
+            "frames_analyzed": result["total_frames_processed"],
+            "total_segments": result["total_segments"],
+            "frames": result["frames"]
         }
 
     except HTTPException:
@@ -905,9 +655,7 @@ async def detect_objects_in_video_annotated(
         video_bytes = await video.read()
 
         # Parse classes
-        class_list = None
-        if classes:
-            class_list = [c.strip() for c in classes.split(",") if c.strip()]
+        class_list = parse_classes(classes)
 
         logger.info(f"Processing video annotation: {video.filename}")
 
@@ -1027,9 +775,7 @@ async def detect_video_async(
         video_bytes = await video.read()
 
         # Parse classes
-        class_list = None
-        if classes:
-            class_list = [c.strip() for c in classes.split(",") if c.strip()]
+        class_list = parse_classes(classes)
 
         # Get video info to know total frames
         import tempfile
@@ -1173,7 +919,7 @@ async def detect_stream(
         # Parse class filter
         class_list = None
         if classes and classes.strip():
-            class_list = [c.strip() for c in classes.split(',') if c.strip()]
+            class_list = parse_classes(classes)
             logger.info(f"[Stream] Filtering for classes: {class_list}")
 
         # Read image bytes
@@ -1249,7 +995,7 @@ async def segment_stream(
         # Parse class filter
         class_list = None
         if classes and classes.strip():
-            class_list = [c.strip() for c in classes.split(',') if c.strip()]
+            class_list = parse_classes(classes)
             logger.info(f"[SegmentStream] Filtering for classes: {class_list}")
 
         # Read image bytes
