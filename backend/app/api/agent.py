@@ -95,7 +95,6 @@ async def agent_analyze(
         logger.info(f"Agent analyze completed for session {session_id} in {processing_time:.2f}s")
 
         # Check if annotated image was generated
-        from pathlib import Path
         annotated_images_dir = Path(__file__).parent.parent.parent / "annotated_images"
         annotated_image_path = annotated_images_dir / f"{session_id}.jpg"
 

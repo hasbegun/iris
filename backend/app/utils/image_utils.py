@@ -4,7 +4,6 @@ Image utility functions for resizing and optimizing images
 from io import BytesIO
 from PIL import Image
 import logging
-import imghdr
 
 logger = logging.getLogger(__name__)
 

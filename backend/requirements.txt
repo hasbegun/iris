@@ -20,3 +20,11 @@ langchain==0.3.13
 langchain-core>=0.3.26
 langchain-community==0.3.13
 langchain-ollama==0.2.1  # For ReAct agent with Ollama
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+httpx==0.25.2  # For testing FastAPI endpoints
+faker==20.1.0  # For generating test data
