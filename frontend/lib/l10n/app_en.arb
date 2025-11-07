@@ -357,5 +357,13 @@
   "startDetection": "Start Detection",
   "@startDetection": {
     "description": "Button to start detection"
+  },
+  "connecting": "Connecting...",
+  "@connecting": {
+    "description": "Status when connecting to backend"
+  },
+  "notConnected": "Not Connected",
+  "@notConnected": {
+    "description": "Status when backend is not connected"
   }
 }

@@ -262,4 +262,10 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get startDetection => 'Start Detection';
+
+  @override
+  String get connecting => 'Connecting...';
+
+  @override
+  String get notConnected => 'Not Connected';
 }

@@ -563,6 +563,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Start Detection'**
   String get startDetection;
+
+  /// Status when connecting to backend
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting...'**
+  String get connecting;
+
+  /// Status when backend is not connected
+  ///
+  /// In en, this message translates to:
+  /// **'Not Connected'**
+  String get notConnected;
 }
 
 class _AppLocalizationsDelegate

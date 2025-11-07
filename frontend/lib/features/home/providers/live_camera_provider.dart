@@ -10,6 +10,14 @@ enum LiveVisualizationMode {
   segmentation,
 }
 
+/// Connection status enum
+enum ConnectionStatus {
+  checking,
+  connected,
+  disconnected,
+  error,
+}
+
 /// Live camera detection state
 class LiveCameraState {
   final bool isDetecting;
@@ -23,6 +31,9 @@ class LiveCameraState {
   final DateTime? lastDetectionTime;
   final double? lastInferenceTime;
   final double opacity;
+  final bool isConnected;
+  final ConnectionStatus connectionStatus;
+  final DateTime? lastConnectionCheck;
 
   const LiveCameraState({
     this.isDetecting = false,
@@ -36,6 +47,9 @@ class LiveCameraState {
     this.lastDetectionTime,
     this.lastInferenceTime,
     this.opacity = 0.5,
+    this.isConnected = false,
+    this.connectionStatus = ConnectionStatus.checking,
+    this.lastConnectionCheck,
   });
 
   LiveCameraState copyWith({
@@ -51,6 +65,9 @@ class LiveCameraState {
     DateTime? lastDetectionTime,
     double? lastInferenceTime,
     double? opacity,
+    bool? isConnected,
+    ConnectionStatus? connectionStatus,
+    DateTime? lastConnectionCheck,
   }) {
     return LiveCameraState(
       isDetecting: isDetecting ?? this.isDetecting,
@@ -64,6 +81,9 @@ class LiveCameraState {
       lastDetectionTime: lastDetectionTime ?? this.lastDetectionTime,
       lastInferenceTime: lastInferenceTime ?? this.lastInferenceTime,
       opacity: opacity ?? this.opacity,
+      isConnected: isConnected ?? this.isConnected,
+      connectionStatus: connectionStatus ?? this.connectionStatus,
+      lastConnectionCheck: lastConnectionCheck ?? this.lastConnectionCheck,
     );
   }
 
@@ -128,6 +148,53 @@ class LiveCameraNotifier extends StateNotifier<LiveCameraState> {
   /// Set opacity for segmentation overlay
   void setOpacity(double opacity) {
     state = state.copyWith(opacity: opacity);
+  }
+
+  /// Check backend connection
+  Future<void> checkConnection() async {
+    debugPrint('[LiveCamera] Checking backend connection to $_backendUrl');
+
+    // Set status to checking
+    state = state.copyWith(
+      connectionStatus: ConnectionStatus.checking,
+    );
+
+    try {
+      // Try to ping backend health endpoint with short timeout
+      final response = await _dio.get(
+        '$_backendUrl/api/health',
+        options: Options(
+          receiveTimeout: const Duration(seconds: 3),
+          sendTimeout: const Duration(seconds: 3),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('[LiveCamera] ✓ Backend connected');
+        state = state.copyWith(
+          isConnected: true,
+          connectionStatus: ConnectionStatus.connected,
+          lastConnectionCheck: DateTime.now(),
+          clearError: true,
+        );
+      } else {
+        debugPrint('[LiveCamera] ✗ Backend returned status: ${response.statusCode}');
+        state = state.copyWith(
+          isConnected: false,
+          connectionStatus: ConnectionStatus.error,
+          lastConnectionCheck: DateTime.now(),
+          error: 'Backend error: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      debugPrint('[LiveCamera] ✗ Backend connection failed: $e');
+      state = state.copyWith(
+        isConnected: false,
+        connectionStatus: ConnectionStatus.disconnected,
+        lastConnectionCheck: DateTime.now(),
+        error: 'Cannot connect to backend',
+      );
+    }
   }
 
   /// Process a camera frame for detection or segmentation

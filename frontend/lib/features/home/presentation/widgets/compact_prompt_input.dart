@@ -8,7 +8,8 @@ import '../../../prompt/providers/prompt_provider.dart' show
     isRecordingProvider,
     isListeningProvider,
     speechConfidenceProvider,
-    promptErrorProvider;
+    promptErrorProvider,
+    isFinalResultProvider;
 
 /// Compact Gemini-style prompt input widget
 class CompactPromptInput extends ConsumerStatefulWidget {
@@ -59,9 +60,15 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
     await ref.read(promptProvider.notifier).startRecording();
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+
+    // Stop recording if active
+    final isRecording = ref.read(isRecordingProvider);
+    if (isRecording) {
+      await ref.read(promptProvider.notifier).stopRecording();
+    }
 
     // Update provider with the text
     ref.read(promptProvider.notifier).updateText(text);
@@ -82,6 +89,24 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
     final isListening = ref.watch(isListeningProvider);
     final confidence = ref.watch(speechConfidenceProvider);
     final error = ref.watch(promptErrorProvider);
+
+    // Listen for final speech results and auto-submit
+    ref.listen<bool>(isFinalResultProvider, (previous, next) {
+      // When we get a final result
+      if (next && isRecording) {
+        debugPrint('[CompactPromptInput] Final result detected, auto-submitting...');
+        final text = ref.read(promptTextProvider).trim();
+
+        if (text.isNotEmpty) {
+          // Auto-submit if we have text
+          _handleSubmit();
+        } else {
+          // Stop recording if no text was recognized
+          debugPrint('[CompactPromptInput] No text recognized, stopping recording');
+          ref.read(promptProvider.notifier).stopRecording();
+        }
+      }
+    });
 
     // Update text field when speech recognition updates
     if (isRecording && promptText != _controller.text) {
@@ -196,10 +221,16 @@ class _CompactPromptInputState extends ConsumerState<CompactPromptInput> {
                         ),
                       ),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 16),
-                      onPressed: () => ref.read(promptProvider.notifier).clearError(),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () {
+                        ref.read(promptProvider.notifier).clearError();
+                      },
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      tooltip: 'Dismiss',
                     ),
                   ],
                 ),

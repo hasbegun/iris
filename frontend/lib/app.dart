@@ -4,9 +4,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:iris/l10n/app_localizations.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/settings/providers/settings_provider.dart';
 import 'features/home/presentation/home_screen_redesigned.dart';
 import 'features/settings/presentation/settings_screen.dart';
+import 'features/settings/providers/settings_provider.dart';
 
 class IrisApp extends ConsumerWidget {
   const IrisApp({super.key});

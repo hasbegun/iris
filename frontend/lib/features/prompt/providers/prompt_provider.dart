@@ -164,3 +164,8 @@ final speechConfidenceProvider = Provider<double>((ref) {
 final confidenceLevelProvider = Provider<String>((ref) {
   return ref.watch(promptProvider).confidenceLevel;
 });
+
+/// Provider for final result state
+final isFinalResultProvider = Provider<bool>((ref) {
+  return ref.watch(promptProvider).isFinalResult;
+});

@@ -7,7 +7,7 @@ import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image/image.dart' as img;
 import 'package:iris/l10n/app_localizations.dart';
-import '../../../speech/services/speech_service.dart';
+import '../../../prompt/providers/prompt_provider.dart';
 import '../../providers/live_camera_provider.dart';
 import 'live_detection_overlay.dart';
 import 'live_segmentation_overlay.dart';
@@ -107,13 +107,10 @@ class LiveCameraWidget extends ConsumerStatefulWidget {
 
 class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with WidgetsBindingObserver {
   CameraController? _cameraController;
-  final SpeechService _speechService = SpeechService();
   bool _isInitialized = false;
   bool _isDetecting = false;
-  bool _isListening = false;
   String? _errorMessage;
   String _currentCommand = '';
-  String _partialCommand = '';
   bool _isProcessingFrame = false;
   DateTime? _lastFrameTime;
   int _adaptiveFrameInterval = 200; // Start at 200ms (~5 FPS)
@@ -127,19 +124,38 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
   int _droppedFramesCount = 0;
   static const int _maxQueueAge = 100; // Drop queued frames older than 100ms
 
+  // Connection monitoring
+  Timer? _connectionCheckTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
-    // Don't request permissions on init - only when user clicks microphone
-    _setupSpeechServiceCallbacks();
+
+    // Initial connection check
+    _checkBackendConnection();
+
+    // Start periodic connection monitoring (every 5 seconds)
+    _connectionCheckTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _checkBackendConnection(),
+    );
+  }
+
+  /// Check backend connection status
+  void _checkBackendConnection() {
+    ref.read(liveCameraProvider.notifier).checkConnection();
   }
 
   @override
   void dispose() {
     debugPrint('[LiveCamera] Disposing widget...');
     WidgetsBinding.instance.removeObserver(this);
+
+    // Cancel connection check timer
+    _connectionCheckTimer?.cancel();
+    _connectionCheckTimer = null;
 
     // Stop image stream without calling setState
     try {
@@ -176,9 +192,6 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     });
     _cameraController = null;
 
-    // Dispose speech service
-    _speechService.dispose();
-
     super.dispose();
   }
 
@@ -196,93 +209,6 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     }
   }
 
-  /// Setup speech service callbacks (without requesting permissions)
-  void _setupSpeechServiceCallbacks() {
-    debugPrint('[LiveCamera] Setting up speech service callbacks...');
-
-    // Set up callbacks
-    _speechService.onCommandRecognized = (command) {
-      debugPrint('[LiveCamera] Command recognized: $command');
-      _handleVoiceCommand(command);
-    };
-
-    _speechService.onPartialResult = (text) {
-      setState(() {
-        _partialCommand = text;
-      });
-    };
-
-    _speechService.onError = (error) {
-      if (mounted) {
-        final l10n = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.speechError(error))),
-        );
-      }
-    };
-
-    _speechService.onListeningStart = () {
-      if (mounted) {
-        setState(() {
-          _isListening = true;
-        });
-      }
-    };
-
-    _speechService.onListeningStop = () {
-      if (mounted) {
-        setState(() {
-          _isListening = false;
-          _partialCommand = '';
-        });
-      }
-    };
-
-    debugPrint('[LiveCamera] Speech service callbacks configured');
-  }
-
-  /// Handle recognized voice command
-  void _handleVoiceCommand(VoiceCommandResult command) {
-    final l10n = AppLocalizations.of(context)!;
-
-    switch (command.command) {
-      case VoiceCommand.find:
-        if (command.target != null) {
-          _startDetection(command.target!);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.findingObject(command.target!))),
-          );
-        }
-        break;
-
-      case VoiceCommand.stop:
-        _stopDetection();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.detectionStopped)),
-        );
-        break;
-
-      case VoiceCommand.pause:
-        // TODO: Implement pause functionality
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.pauseNotImplemented)),
-        );
-        break;
-
-      case VoiceCommand.resume:
-        // TODO: Implement resume functionality
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.resumeNotImplemented)),
-        );
-        break;
-
-      case VoiceCommand.unknown:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.unknownCommand(command.rawText))),
-        );
-        break;
-    }
-  }
 
   /// Initialize camera
   Future<void> _initializeCamera() async {
@@ -742,36 +668,15 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
 
   /// Toggle voice command listening
   Future<void> _toggleVoiceCommand() async {
-    if (_isListening) {
-      // Stop listening
-      await _speechService.stopListening();
-      return;
+    final isRecording = ref.read(isRecordingProvider);
+
+    if (isRecording) {
+      // Stop recording
+      await ref.read(promptProvider.notifier).stopRecording();
+    } else {
+      // Start recording
+      await ref.read(promptProvider.notifier).startRecording();
     }
-
-    // Initialize speech service - this will request permissions internally if needed
-    debugPrint('[LiveCamera] Initializing speech service...');
-    final initialized = await _speechService.initialize();
-
-    if (!initialized) {
-      debugPrint('[LiveCamera] Speech initialization failed - permissions may have been denied');
-      if (mounted) {
-        final l10n = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.speechError('Speech recognition not available. Please enable microphone and speech recognition in Settings.')),
-            action: SnackBarAction(
-              label: 'Settings',
-              onPressed: () => openAppSettings(),
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    // Permissions granted - start listening
-    debugPrint('[LiveCamera] Speech initialized, starting listening...');
-    await _speechService.startListening();
   }
 
   /// Build toggle switch for detection/segmentation mode
@@ -920,14 +825,19 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         ),
         actions: [
           // Voice command button
-          IconButton(
-            icon: Icon(
-              _isListening ? Icons.mic : Icons.mic_none,
-              color: _isListening ? Colors.red : Colors.white,
-              shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
-            ),
-            onPressed: _toggleVoiceCommand,
-            tooltip: _isListening ? l10n.stopListening : l10n.voiceCommand,
+          Consumer(
+            builder: (context, ref, child) {
+              final isRecording = ref.watch(isRecordingProvider);
+              return IconButton(
+                icon: Icon(
+                  isRecording ? Icons.mic : Icons.mic_none,
+                  color: isRecording ? Colors.red : Colors.white,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+                ),
+                onPressed: _toggleVoiceCommand,
+                tooltip: isRecording ? l10n.stopListening : l10n.voiceCommand,
+              );
+            },
           ),
         ],
       ),
@@ -1205,52 +1115,67 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
             ),
           ),
 
-        // Voice command status
-        if (_isListening)
-          Positioned(
-            top: 16,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+        // Voice command status - positioned above bottom controls
+        Consumer(
+          builder: (context, ref, child) {
+            final isRecording = ref.watch(isRecordingProvider);
+            final isListening = ref.watch(isListeningProvider);
+            final promptText = ref.watch(promptTextProvider);
+            final promptError = ref.watch(promptErrorProvider);
+
+            if (!isRecording) return const SizedBox.shrink();
+
+            return Positioned(
+              bottom: 200, // Position above the "Start Detection" button
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: promptError != null
+                          ? Colors.orange.withOpacity(0.9)
+                          : Colors.red.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.mic, color: Colors.white, size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                          l10n.listening,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.mic, color: Colors.white, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              isListening ? l10n.listening : l10n.starting,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
+                        if (promptText.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '"$promptText"',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
-                    if (_partialCommand.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '"$_partialCommand"',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
+        ),
 
         // Toggle switch and opacity slider
         if (_isDetecting)
@@ -1325,13 +1250,28 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
                       )
                     else
                       ElevatedButton.icon(
-                        onPressed: () {
-                          // Start detection for all objects (empty string = detect all YOLO classes)
-                          _startDetection('');
-                        },
-                        icon: const Icon(Icons.radar),
-                        label: Text(l10n.startDetection),
+                        onPressed: liveCameraState.isConnected
+                            ? () {
+                                // Start detection for all objects (empty string = detect all YOLO classes)
+                                _startDetection('');
+                              }
+                            : null, // Disabled when not connected
+                        icon: Icon(
+                          liveCameraState.connectionStatus == ConnectionStatus.checking
+                              ? Icons.sync
+                              : liveCameraState.isConnected
+                                  ? Icons.radar
+                                  : Icons.cloud_off,
+                        ),
+                        label: Text(
+                          liveCameraState.connectionStatus == ConnectionStatus.checking
+                              ? l10n.connecting
+                              : liveCameraState.isConnected
+                                  ? l10n.startDetection
+                                  : l10n.notConnected,
+                        ),
                         style: ElevatedButton.styleFrom(
+                          backgroundColor: liveCameraState.isConnected ? null : Colors.grey,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,
                             vertical: 16,
