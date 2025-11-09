@@ -9,6 +9,7 @@ import logging
 from app.services.ml_client import ml_client
 from app.services.context_manager import context_manager
 from app.services.ollama_service import ollama_service
+from app.services.search_service import search_service
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -424,6 +425,67 @@ async def detect_objects_in_video(
         }
 
 
+@tool
+async def web_search(query: str) -> str:
+    """
+    Search the web for current information using SearXNG.
+
+    Use this tool when you need to:
+    - Find current/real-time information (stock prices, news, weather)
+    - Look up facts, definitions, or explanations
+    - Get information about detected objects (e.g., after detecting a "car", search "what is a car used for")
+    - Answer questions that require up-to-date knowledge
+
+    IMPORTANT: This tool should be used AFTER using vision tools if the user is asking
+    about objects in an image. For example:
+    - If user asks "what's in this image?", use detect_objects or vision_analysis
+    - If user then asks "what does it do?", construct query from detected objects
+      and search (e.g., if cars were detected, search "what are cars used for")
+
+    Args:
+        query: The search query (be specific and clear)
+
+    Returns:
+        Formatted string with search results
+
+    Examples of when to use:
+        - "what is nvidia stock price today" -> web_search("nvidia stock price")
+        - After detecting "car": "what does it do?" -> web_search("what is a car used for")
+        - "latest news about AI" -> web_search("latest AI news")
+        - After detecting "bottle": "what's it for?" -> web_search("water bottle uses")
+    """
+    try:
+        logger.info(f"Web search tool called with query: '{query}'")
+
+        # Perform search
+        search_result = await search_service.search(
+            query=query,
+            max_results=settings.searxng_max_results
+        )
+
+        # Format results for the agent
+        if search_result.total_results == 0:
+            return f"No search results found for query: '{query}'"
+
+        # Build formatted response
+        response_parts = [f"Search results for '{query}':\n"]
+
+        for i, result in enumerate(search_result.results, 1):
+            response_parts.append(f"\n{i}. {result.title}")
+            response_parts.append(f"   URL: {result.url}")
+            response_parts.append(f"   {result.content}\n")
+
+        formatted_response = "\n".join(response_parts)
+        logger.info(f"Web search returned {search_result.total_results} results")
+
+        return formatted_response
+
+    except Exception as e:
+        logger.error(f"Web search tool error: {e}", exc_info=True)
+        error_msg = f"Web search failed: {str(e)}"
+        return error_msg
+
+
 # List of all tools for easy import
 VISION_TOOLS = [
     vision_analysis,
@@ -433,6 +495,14 @@ VISION_TOOLS = [
     detect_objects_in_video
 ]
 
+# Web search tool
+SEARCH_TOOLS = [
+    web_search
+]
+
+# All tools combined
+ALL_TOOLS = VISION_TOOLS + SEARCH_TOOLS
+
 # Alias for backward compatibility
 YOLO_TOOLS = VISION_TOOLS
 
@@ -440,6 +510,6 @@ YOLO_TOOLS = VISION_TOOLS
 def get_all_tools():
     """
     Returns a list of all defined tools for the agent.
-    Following EOS pattern for consistency.
+    Includes both vision and search tools.
     """
-    return VISION_TOOLS
+    return ALL_TOOLS

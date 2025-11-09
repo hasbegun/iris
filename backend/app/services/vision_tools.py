@@ -10,6 +10,7 @@ import logging
 from app.services.ml_client import ml_client
 from app.services.context_manager import context_manager
 from app.services.ollama_service import ollama_service
+from app.services.agent_tools import web_search
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -509,5 +510,5 @@ def create_vision_tools(session_id: str) -> List:
             return f"Error managing live camera: {str(e)}"
 
 
-    # Return all tools
-    return [analyze_image, find_objects, count_people, segment_objects, find_objects_in_video, analyze_live_camera]
+    # Return all tools (including web search for contextual information)
+    return [analyze_image, find_objects, count_people, segment_objects, find_objects_in_video, analyze_live_camera, web_search]

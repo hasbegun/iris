@@ -46,7 +46,7 @@ services:
     image: searxng/searxng:latest
     container_name: iris-searxng
     ports:
-      - "8080:8080"
+      - "9090:8080"
     volumes:
       - ./searxng:/etc/searxng
     environment:

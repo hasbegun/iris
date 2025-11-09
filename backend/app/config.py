@@ -41,5 +41,11 @@ class Settings(BaseSettings):
     agent_verbose: bool = True
     yolo_default_confidence: float = 0.7  # Higher confidence for more accurate detections
 
+    # Search Service (SearXNG)
+    searxng_url: str = "http://localhost:9090"
+    searxng_timeout: int = 10
+    searxng_max_results: int = 5
+    searxng_enabled: bool = True
+
 
 settings = Settings()
