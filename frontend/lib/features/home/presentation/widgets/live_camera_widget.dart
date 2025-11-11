@@ -11,6 +11,8 @@ import '../../../prompt/providers/prompt_provider.dart';
 import '../../providers/live_camera_provider.dart';
 import 'live_detection_overlay.dart';
 import 'live_segmentation_overlay.dart';
+import '../../../voice_query/providers/voice_query_provider.dart';
+import '../../../voice_query/widgets/voice_query_button.dart';
 
 // ============================================================================
 // ISOLATE-COMPATIBLE TOP-LEVEL FUNCTIONS
@@ -117,6 +119,9 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
   static const int _minFrameInterval = 100; // Max 10 FPS
   static const int _maxFrameInterval = 500; // Min 2 FPS
   static const int _targetProcessingTime = 150; // Target total time per frame
+
+  // Store current frame for voice query
+  Uint8List? _currentFrameBytes;
 
   // Frame queue for Phase 3 optimization
   CameraImage? _queuedFrame;
@@ -519,6 +524,13 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
         return;
       }
 
+      // Store current frame for voice query
+      if (mounted) {
+        setState(() {
+          _currentFrameBytes = jpegBytes;
+        });
+      }
+
       // Send to provider for detection
       final totalTime = DateTime.now().difference(startTime).inMilliseconds;
       debugPrint('[LiveCamera] Total client processing: ${totalTime}ms (conversion: ${conversionTime}ms, encoding: ${encodingTime}ms)');
@@ -666,16 +678,105 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
     return image;
   }
 
-  /// Toggle voice command listening
+  /// Capture a single frame for voice query (when not detecting)
+  Future<void> _captureFrameForVoiceQuery() async {
+    if (!_isInitialized || _cameraController == null || _isDetecting) {
+      return;
+    }
+
+    try {
+      // Take a picture and convert to bytes
+      final image = await _cameraController!.takePicture();
+      final bytes = await image.readAsBytes();
+
+      if (mounted) {
+        setState(() {
+          _currentFrameBytes = bytes;
+        });
+      }
+      debugPrint('[LiveCamera] Captured frame for voice query: ${bytes.length} bytes');
+    } catch (e) {
+      debugPrint('[LiveCamera] Error capturing frame: $e');
+    }
+  }
+
+  /// Toggle voice command/query listening
   Future<void> _toggleVoiceCommand() async {
     final isRecording = ref.read(isRecordingProvider);
+    final voiceQueryState = ref.read(voiceQueryProvider);
 
     if (isRecording) {
       // Stop recording
       await ref.read(promptProvider.notifier).stopRecording();
+      return;
+    }
+
+    // Check if voice query is already active (listening or processing)
+    if (voiceQueryState.isActive) {
+      debugPrint('[LiveCamera] Voice query already active, ignoring tap');
+      // Show feedback that we're already processing
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              voiceQueryState.isListening
+                ? 'Already listening...'
+                : 'Processing your request...'
+            ),
+            duration: const Duration(milliseconds: 800),
+          ),
+        );
+      }
+      return;
+    }
+
+    // If we have a camera frame, use voice query (new system)
+    if (_currentFrameBytes != null) {
+      debugPrint('[LiveCamera] Using voice query with current frame');
+      ref.read(voiceQueryProvider.notifier).startVoiceQuery(
+        currentFrame: _currentFrameBytes!,
+        sessionId: null,
+        shouldSpeak: true,
+      );
     } else {
-      // Start recording
-      await ref.read(promptProvider.notifier).startRecording();
+      // No frame available - capture one first
+      if (!_isDetecting) {
+        debugPrint('[LiveCamera] No frame available, capturing one...');
+        await _captureFrameForVoiceQuery();
+
+        // Wait a moment for frame to be captured
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        if (_currentFrameBytes != null) {
+          debugPrint('[LiveCamera] Frame captured, starting voice query');
+          ref.read(voiceQueryProvider.notifier).startVoiceQuery(
+            currentFrame: _currentFrameBytes!,
+            sessionId: null,
+            shouldSpeak: true,
+          );
+        } else {
+          // Still no frame - show error
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Unable to capture camera frame. Please start detection first.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } else {
+        // Detection is running but no frame yet - wait for next frame
+        debugPrint('[LiveCamera] Detection running, waiting for frame...');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Waiting for camera frame...'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -823,23 +924,6 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
           color: Colors.white,
           shadows: [Shadow(color: Colors.black, blurRadius: 4)],
         ),
-        actions: [
-          // Voice command button
-          Consumer(
-            builder: (context, ref, child) {
-              final isRecording = ref.watch(isRecordingProvider);
-              return IconButton(
-                icon: Icon(
-                  isRecording ? Icons.mic : Icons.mic_none,
-                  color: isRecording ? Colors.red : Colors.white,
-                  shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
-                ),
-                onPressed: _toggleVoiceCommand,
-                tooltip: isRecording ? l10n.stopListening : l10n.voiceCommand,
-              );
-            },
-          ),
-        ],
       ),
       body: _buildBody(),
     );
@@ -1115,174 +1199,71 @@ class _LiveCameraWidgetState extends ConsumerState<LiveCameraWidget> with Widget
             ),
           ),
 
-        // Voice command status - positioned above bottom controls
+        // Voice Query Status at bottom
+        const Positioned(
+          bottom: 24,
+          left: 16,
+          right: 16,
+          child: SafeArea(
+            top: false,
+            child: VoiceQueryStatusIndicator(),
+          ),
+        ),
+
+        // Floating mic button at bottom-middle
         Consumer(
           builder: (context, ref, child) {
-            final isRecording = ref.watch(isRecordingProvider);
-            final isListening = ref.watch(isListeningProvider);
-            final promptText = ref.watch(promptTextProvider);
-            final promptError = ref.watch(promptErrorProvider);
+            final voiceQueryState = ref.watch(voiceQueryProvider);
 
-            if (!isRecording) return const SizedBox.shrink();
+            // Hide button while TTS is speaking
+            if (voiceQueryState.isSpeaking) {
+              return const SizedBox.shrink();
+            }
 
             return Positioned(
-              bottom: 200, // Position above the "Start Detection" button
+              bottom: 250, // Fixed position above status indicator
               left: 0,
               right: 0,
-              child: SafeArea(
-                top: false,
-                child: Center(
+              child: Center(
+                child: GestureDetector(
+                  onTap: _toggleVoiceCommand,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
-                      color: promptError != null
-                          ? Colors.orange.withOpacity(0.9)
-                          : Colors.red.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.mic, color: Colors.white, size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              isListening ? l10n.listening : l10n.starting,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                      color: voiceQueryState.isListening
+                          ? Colors.red
+                          : voiceQueryState.isProcessing
+                              ? Colors.orange
+                              : Colors.blue,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (voiceQueryState.isListening
+                                  ? Colors.red
+                                  : voiceQueryState.isProcessing
+                                      ? Colors.orange
+                                      : Colors.blue)
+                              .withOpacity(0.5),
+                          blurRadius: 20,
+                          spreadRadius: 5,
                         ),
-                        if (promptText.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            '"$promptText"',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
                       ],
+                    ),
+                    child: Icon(
+                      voiceQueryState.isListening
+                          ? Icons.mic
+                          : voiceQueryState.isProcessing
+                              ? Icons.query_stats
+                              : Icons.mic_none,
+                      color: Colors.white,
+                      size: 36,
                     ),
                   ),
                 ),
               ),
             );
           },
-        ),
-
-        // Toggle switch and opacity slider
-        if (_isDetecting)
-          Positioned(
-            bottom: 120,
-            left: 0,
-            right: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Toggle switch
-                _buildToggleSwitch(context, liveCameraState),
-
-                // Opacity slider (only in segmentation mode)
-                if (liveCameraState.visualizationMode == LiveVisualizationMode.segmentation) ...[
-                  const SizedBox(height: 12),
-                  _buildOpacitySlider(context, liveCameraState),
-                ],
-              ],
-            ),
-          ),
-
-        // Control buttons at bottom
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.7),
-                ],
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Instructions
-                if (!_isDetecting)
-                  Text(
-                    l10n.liveCameraInstructions,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                const SizedBox(height: 16),
-
-                // Start/Stop button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_isDetecting)
-                      ElevatedButton.icon(
-                        onPressed: _stopDetection,
-                        icon: const Icon(Icons.stop),
-                        label: Text(l10n.stopDetection),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
-                          ),
-                        ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        onPressed: liveCameraState.isConnected
-                            ? () {
-                                // Start detection for all objects (empty string = detect all YOLO classes)
-                                _startDetection('');
-                              }
-                            : null, // Disabled when not connected
-                        icon: Icon(
-                          liveCameraState.connectionStatus == ConnectionStatus.checking
-                              ? Icons.sync
-                              : liveCameraState.isConnected
-                                  ? Icons.radar
-                                  : Icons.cloud_off,
-                        ),
-                        label: Text(
-                          liveCameraState.connectionStatus == ConnectionStatus.checking
-                              ? l10n.connecting
-                              : liveCameraState.isConnected
-                                  ? l10n.startDetection
-                                  : l10n.notConnected,
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: liveCameraState.isConnected ? null : Colors.grey,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
         ),
       ],
     );

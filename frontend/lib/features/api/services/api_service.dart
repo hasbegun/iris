@@ -6,6 +6,7 @@ import 'package:http_parser/http_parser.dart';
 import '../models/vision_response.dart';
 import '../models/api_error.dart';
 import '../models/detection.dart';
+import '../models/voice_query_response.dart';
 
 /// Service for backend API communication
 class ApiService {
@@ -359,6 +360,40 @@ class ApiService {
       }
 
       throw ApiError(message: 'Failed to enrich video frames with segmentation');
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    } catch (e) {
+      throw ApiError.fromException(e);
+    }
+  }
+
+  /// Voice query: Analyze frame with voice query and hallucination prevention
+  Future<VoiceQueryResponse> voiceQuery({
+    required Uint8List imageBytes,
+    required String query,
+    String? sessionId,
+    bool verifyWithDetection = true,
+    double confidence = 0.7,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'image': MultipartFile.fromBytes(
+          imageBytes,
+          filename: 'frame.jpg',
+          contentType: MediaType('image', 'jpeg'),
+        ),
+        'query': query,
+        if (sessionId != null) 'session_id': sessionId,
+        'verify_with_detection': verifyWithDetection,
+        'confidence': confidence,
+      });
+
+      final response = await _dio.post(
+        '/api/voice-query/analyze',
+        data: formData,
+      );
+
+      return VoiceQueryResponse.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw _handleDioError(e);
     } catch (e) {

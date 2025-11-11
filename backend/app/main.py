@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 
 from .config import settings
-from .api import vision, chat, agent, images, ml_proxy
+from .api import vision, chat, agent, images, ml_proxy, voice_query
 from .services.ollama_service import ollama_service
 from .services.context_manager import context_manager
 from .services.ml_client import ml_client
@@ -106,6 +106,7 @@ app.include_router(agent.router)
 app.include_router(images.router)
 app.include_router(ml_proxy.router)  # ML service proxy for live camera
 app.include_router(ml_proxy.api_router)  # ML service proxy for static images
+app.include_router(voice_query.router)  # Voice query with hallucination prevention
 
 # Mount static files for annotated images
 annotated_images_path = Path(__file__).parent.parent / "annotated_images"

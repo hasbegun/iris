@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs clean install-ollama pull-models test test-vision create-test-image test-chromadb health status services dev-local check-prereqs
+.PHONY: help build up down restart logs clean install-ollama pull-models test test-vision create-test-image test-chromadb health status services dev-local check-prereqs searxng-up searxng-down searxng-restart searxng-logs searxng-status
 
 # Default target
 help:
@@ -22,6 +22,15 @@ help:
 	@echo "  make logs           - View logs from all services"
 	@echo "  make logs-backend   - View backend logs"
 	@echo "  make logs-searxng   - View SearXNG logs"
+	@echo ""
+	@echo "SearXNG Management:"
+	@echo "  make searxng-up     - Start SearXNG only"
+	@echo "  make searxng-down   - Stop SearXNG only"
+	@echo "  make searxng-restart- Restart SearXNG only"
+	@echo "  make searxng-logs   - View SearXNG logs"
+	@echo "  make searxng-status - Check SearXNG status"
+	@echo ""
+	@echo "Service Management:"
 	@echo "  make health         - Check health of all services"
 	@echo "  make status         - Show status of all services"
 	@echo "  make clean          - Stop and remove all containers, networks, and volumes"
@@ -311,3 +320,44 @@ update-deps:
 	@echo "📦 Updating dependencies..."
 	docker-compose build --no-cache
 	@echo "✅ Dependencies updated"
+
+# SearXNG Management Commands
+searxng-up:
+	@echo "🔍 Starting SearXNG..."
+	docker-compose up -d searxng
+	@echo ""
+	@echo "✅ SearXNG started!"
+	@echo "   URL: http://localhost:9090"
+	@echo ""
+	@echo "Check status with: make searxng-status"
+
+searxng-down:
+	@echo "🛑 Stopping SearXNG..."
+	docker-compose stop searxng
+	@echo "✅ SearXNG stopped"
+
+searxng-restart:
+	@echo "🔄 Restarting SearXNG..."
+	docker-compose restart searxng
+	@echo "✅ SearXNG restarted"
+	@echo "   URL: http://localhost:9090"
+
+searxng-logs:
+	@echo "📋 SearXNG logs (Ctrl+C to exit):"
+	@echo ""
+	docker-compose logs -f searxng
+
+searxng-status:
+	@echo "📊 SearXNG Status:"
+	@echo ""
+	@docker-compose ps searxng
+	@echo ""
+	@echo "Health Check:"
+	@if curl -s http://localhost:9090 >/dev/null 2>&1; then \
+		echo "  ✅ SearXNG is running"; \
+		echo "  URL: http://localhost:9090"; \
+	else \
+		echo "  ❌ SearXNG is not responding"; \
+		echo "  Try: make searxng-up"; \
+	fi
+	@echo ""

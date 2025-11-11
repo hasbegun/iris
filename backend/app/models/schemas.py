@@ -128,3 +128,19 @@ class DetectionResponse(BaseModel):
     total_count: int
     summary: str
     inference_time_ms: Optional[float] = None
+
+
+class VoiceQueryResponse(BaseModel):
+    """Response from voice-triggered vision query."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    session_id: str = Field(..., description="Session ID for future reference")
+    query: str = Field(..., description="The voice query text")
+    query_type: str = Field(..., description="Classified query type (object, action, safety, count, general)")
+    response: str = Field(..., description="AI's response to the voice query")
+    detected_objects: Optional[List[str]] = Field(None, description="List of objects detected by YOLO")
+    detections_count: int = Field(0, description="Total number of detections")
+    used_detection_verification: bool = Field(False, description="Whether YOLO verification was used")
+    processing_time: float = Field(..., description="Processing time in seconds")
+    timestamp: datetime = Field(default_factory=datetime.now)
